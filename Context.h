@@ -11,11 +11,11 @@
 #include <corerror.h>
 
 
-class DHTask;
+class SHTask;
 class SHTaskManager;
 class SHSyncManager;
 
-typedef std::map<DHTask*, SIZE_T> DHDetails;
+typedef std::map<SHTask*, SIZE_T> DHDetails;
 
 class DHContext
 {

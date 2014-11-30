@@ -106,7 +106,7 @@ void DHContext::PrintDeadlock(DHDetails *pDetails, SIZE_T cookie)
     IHostTask *pTask;
     m_pTaskManager->GetCurrentTask((IHostTask**)&pTask);
     fprintf(stderr, "  %x was attempting to acquire %x, which created the cycle\r\n",
-        dynamic_cast<DHTask*>(pTask)->GetThreadHandle(), cookie);
+        dynamic_cast<SHTask*>(pTask)->GetThreadHandle(), cookie);
     pTask->Release();
 
     // Now walk through the wait-graph and print details:
@@ -119,7 +119,7 @@ void DHContext::PrintDeadlock(DHDetails *pDetails, SIZE_T cookie)
 
         fprintf(stderr, "  %x waits on lock %x (owned by %x)\r\n",
             walker->first->GetThreadHandle(), walker->second,
-            dynamic_cast<DHTask*>(pOwner)->GetThreadHandle());
+            dynamic_cast<SHTask*>(pOwner)->GetThreadHandle());
 
         pOwner->Release();
         walker->first->Release();
@@ -293,7 +293,7 @@ STDMETHODIMP_(DHDetails*) DHContext::DetectDeadlock(SIZE_T cookie)
             std::map<IHostTask*, SIZE_T>::iterator waitMatch = m_pLockWaits->find(*walker);
                 waitMatch->first->AddRef();
                 pCycle->insert(DHDetails::value_type(
-                    dynamic_cast<DHTask*>(waitMatch->first), waitMatch->second));
+                    dynamic_cast<SHTask*>(waitMatch->first), waitMatch->second));
                 walker++;
             }
             lock.Exit();

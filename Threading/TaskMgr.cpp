@@ -64,7 +64,7 @@ STDMETHODIMP SHTaskManager::GetCurrentTask(/* out */ IHostTask **pTask) {
    std::map<DWORD, IHostTask*>::iterator match = m_pThreadMap->find(currentThreadId);
    if (match == m_pThreadMap->end()) {
       // No match was found, create one for the currently executing thread.
-      *pTask = new DHTask(this, GetCurrentThread());
+      *pTask = new SHTask(this, GetCurrentThread());
       m_pThreadMap->insert(std::map<DWORD, IHostTask*>::value_type(currentThreadId, *pTask));
    }
    else {
@@ -86,7 +86,7 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
       CREATE_SUSPENDED | STACK_SIZE_PARAM_IS_A_RESERVATION,
       &dwThreadId);
 
-   IHostTask* task = new DHTask(this, hThread);
+   IHostTask* task = new SHTask(this, hThread);
    if (!task) {
       _ASSERTE(!"Failed to allocate task");
       *ppTask = NULL;
