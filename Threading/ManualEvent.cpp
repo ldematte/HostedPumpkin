@@ -1,13 +1,13 @@
 #include "ManualEvent.h"
-#include "../Logger.h"
 
+#include "../Logger.h"
+#include "../HostContext.h"
 
 SHManualEvent::SHManualEvent(BOOL bInitialState) {
    m_cRef = 0;
    m_hEvent = CreateEvent(NULL, TRUE, bInitialState, NULL);
    if (!m_hEvent)
       Logger::Critical("Error creating manual event: %d", GetLastError());
-   m_pContext = NULL;
 }
 
 SHManualEvent::~SHManualEvent() {
@@ -66,5 +66,5 @@ STDMETHODIMP SHManualEvent::Reset() {
 
 STDMETHODIMP SHManualEvent::Wait(DWORD dwMilliseconds, DWORD option) {
    Logger::Info("ManualEvent::Wait");
-   return DHContext::HostWait(m_hEvent, dwMilliseconds, option);
+   return HostContext::HostWait(m_hEvent, dwMilliseconds, option);
 }

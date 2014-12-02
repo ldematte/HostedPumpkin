@@ -3,11 +3,12 @@
 
 #include "../CrstLock.h"
 #include "../Logger.h"
+#include "../HostContext.h"
 
-SHTaskManager::SHTaskManager(DHContext *pContext) {
+
+SHTaskManager::SHTaskManager() {
    m_cRef = 0;
    m_pCLRTaskManager = NULL;
-   m_pContext = pContext;
    m_hSleepEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
 
    if (!m_hSleepEvent) {
@@ -58,6 +59,7 @@ STDMETHODIMP SHTaskManager::QueryInterface(const IID &riid, void **ppvObject) {
 // IHostTaskManager functions
 
 STDMETHODIMP SHTaskManager::GetCurrentTask(/* out */ IHostTask **pTask) {
+   Logger::Info("TaskManager::GetCurrentTask");
    DWORD currentThreadId = GetCurrentThreadId();
 
    CrstLock crst(m_pThreadMapCrst);
@@ -77,6 +79,7 @@ STDMETHODIMP SHTaskManager::GetCurrentTask(/* out */ IHostTask **pTask) {
 }
 
 STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTHREAD_START_ROUTINE pStartAddress, /* in */ PVOID pParameter, /* out */ IHostTask **ppTask) {
+   Logger::Info("TaskManager::CreateTask");
    DWORD dwThreadId;
    HANDLE hThread = CreateThread(
       NULL,
@@ -88,7 +91,7 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
 
    IHostTask* task = new SHTask(this, hThread);
    if (!task) {
-      _ASSERTE(!"Failed to allocate task");
+      Logger::Error("Failed to allocate task");
       *ppTask = NULL;
       return E_OUTOFMEMORY;
    }
@@ -104,25 +107,27 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
 }
 
 STDMETHODIMP SHTaskManager::Sleep(/* in */ DWORD dwMilliseconds, /* in */ DWORD option) {
-   // TODO: recognize 'option'?
-   ::SleepEx(dwMilliseconds, option & WAIT_ALERTABLE);
-   return S_OK;
+   Logger::Info("TaskManager::Sleep");
+   return HostContext::Sleep(dwMilliseconds, option);
 }
 
 STDMETHODIMP SHTaskManager::SwitchToTask(/* in */ DWORD option) {
+   Logger::Info("TaskManager::SwitchToTask");
    //TODO: recognize 'option'?
    SwitchToThread();
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::SetUILocale(/* in */ LCID lcid) {
-   _ASSERTE(!"Not implemented");
+   Logger::Error("TaskManager::SetUILocale: Not implemented");
    return E_NOTIMPL;
 }
 
 STDMETHODIMP SHTaskManager::SetLocale(/* in */ LCID lcid) {
+   Logger::Info("TaskManager::SetLocale");
+
    if (!SetThreadLocale(lcid)) {
-      _ASSERTE(!"Couldn't set thread-locale");
+      Logger::Error("Couldn't set thread-locale");
       return HRESULT_FROM_WIN32(GetLastError());
    }
 
@@ -130,57 +135,71 @@ STDMETHODIMP SHTaskManager::SetLocale(/* in */ LCID lcid) {
 }
 
 STDMETHODIMP SHTaskManager::CallNeedsHostHook(/* in */ SIZE_T target, /* out */ BOOL *pbCallNeedsHostHook) {
+   Logger::Info("TaskManager::CallNeedsHostHook");
+   // Do not inline P/Invoke calls
    *pbCallNeedsHostHook = FALSE;
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::LeaveRuntime(/* in */ SIZE_T target) {
+   Logger::Info("TaskManager::LeaveRuntime");
    // No need to perform any processing.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::EnterRuntime() {
+   Logger::Info("TaskManager::EnterRuntime");
    // No need to perform any processing.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::ReverseLeaveRuntime() {
+   Logger::Info("TaskManager::ReverseLeaveRuntime");
    // No need to perform any processing.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::ReverseEnterRuntime() {
+   Logger::Info("TaskManager::ReverseEnterRuntime");
    // No need to perform any processing.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::BeginDelayAbort() {
+   Logger::Info("TaskManager::BeginDelayAbort");
    // We don't use aborts in this host; no-op.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::EndDelayAbort() {
+   Logger::Info("TaskManager::EndDelayAbort");
    // We don't use aborts in this host; no-op.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::BeginThreadAffinity() {
+   Logger::Info("TaskManager::BeginThreadAffinity");
    // We don't move tasks in this host; no-op.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::EndThreadAffinity() {
+   Logger::Info("TaskManager::EndThreadAffinity");
    // We don't move tasks in this host; no-op.
    return S_OK;
 }
 
 STDMETHODIMP SHTaskManager::SetStackGuarantee(/* in */ ULONG guarantee) {
-   _ASSERTE(!"Not implemented");
+   //http://msdn.microsoft.com/en-us/library/aa964918%28v=vs.110%29.aspx
+   // "Reserved for internal use only"
+   Logger::Info("TaskManager::SetStackGuarantee Not implemented");
    return E_NOTIMPL;
 }
 
 STDMETHODIMP SHTaskManager::GetStackGuarantee(/* out */ ULONG *pGuarantee) {
-   _ASSERTE(!"Not implemented");
+   //http://msdn.microsoft.com/en-us/library/aa964918%28v=vs.110%29.aspx
+   // "Reserved for internal use only"
+   Logger::Info("TaskManager::SetStackGuarantee Not implemented");
    return E_NOTIMPL;
 }
 

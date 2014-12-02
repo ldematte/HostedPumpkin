@@ -6,7 +6,6 @@
 
 #include <map>
 
-class DHContext;
 
 class SHTaskManager : public IHostTaskManager {
 private:
@@ -14,11 +13,10 @@ private:
    ICLRTaskManager *m_pCLRTaskManager;
    std::map<DWORD, IHostTask*> *m_pThreadMap;
    LPCRITICAL_SECTION m_pThreadMapCrst;
-   DHContext *m_pContext;
    HANDLE m_hSleepEvent;
 
 public:
-   SHTaskManager(DHContext *pContext);
+   SHTaskManager();
    ~SHTaskManager();
 
    // IUnknown functions

@@ -4,8 +4,6 @@
 
 #include "Common.h"
 
-#include "Context.h"
-
 class SHTaskManager;
 class SHSyncManager;
 class SHMemoryManager;
@@ -13,36 +11,34 @@ class SHThreadpoolManager;
 class SHGCManager;
 class SHIoCompletionManager;
 
-class DHHostControl : public IHostControl
-{
+class DHHostControl : public IHostControl {
 private:
-    volatile LONG m_cRef;
-    ICLRRuntimeHost *m_pRuntimeHost;
-    ICLRControl *m_pRuntimeControl;
-    DHContext *m_pContext;
+   volatile LONG m_cRef;
+   ICLRRuntimeHost *m_pRuntimeHost;
+   ICLRControl *m_pRuntimeControl;
 
-    SHTaskManager* m_pTaskManager;
-    SHSyncManager* m_pSyncManager;
-    SHMemoryManager* memoryManager;
-    SHThreadpoolManager* threadpoolManager;
-    SHGCManager* gcManager;
-    SHIoCompletionManager* iocpManager;
+   SHTaskManager* taskManager;
+   SHSyncManager* syncManager;
+   SHMemoryManager* memoryManager;
+   SHThreadpoolManager* threadpoolManager;
+   SHGCManager* gcManager;
+   SHIoCompletionManager* iocpManager;
 
 public:
-    DHHostControl(ICLRRuntimeHost *pRuntimeHost);
-    ~DHHostControl();
+   DHHostControl(ICLRRuntimeHost *pRuntimeHost);
+   ~DHHostControl();
 
-    ICLRControl* GetCLRControl() { return m_pRuntimeControl; };
-    STDMETHODIMP_(VOID) ShuttingDown();
+   ICLRControl* GetCLRControl() { return m_pRuntimeControl; };
+   STDMETHODIMP_(VOID) ShuttingDown();
 
-    // IUnknown functions
-    STDMETHODIMP_(DWORD) AddRef();
-    STDMETHODIMP_(DWORD) Release();
-    STDMETHODIMP QueryInterface(const IID &riid, void **ppvObject);
+   // IUnknown functions
+   STDMETHODIMP_(DWORD) AddRef();
+   STDMETHODIMP_(DWORD) Release();
+   STDMETHODIMP QueryInterface(const IID &riid, void **ppvObject);
 
-    // IHostControl functions
-    STDMETHODIMP GetHostManager(const IID &riid, void **ppObject);
-    STDMETHODIMP SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager);
+   // IHostControl functions
+   STDMETHODIMP GetHostManager(const IID &riid, void **ppObject);
+   STDMETHODIMP SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager);
 };
 
 #endif //HOST_CONTROL_H_INCLUDED

@@ -10,9 +10,9 @@ class SHSyncManager : public IHostSyncManager {
 private:
    volatile LONG m_cRef;
    ICLRSyncManager* m_pCLRSyncManager;
-   DHContext *m_pContext;
+
 public:
-   SHSyncManager(DHContext *pContext);
+   SHSyncManager();
    ~SHSyncManager();
 
    ICLRSyncManager* GetCLRSyncManager() { m_pCLRSyncManager->AddRef(); return m_pCLRSyncManager; }

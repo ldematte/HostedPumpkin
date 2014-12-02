@@ -1,6 +1,6 @@
 #include "Task.h"
 
-#include "../Context.h"
+#include "../HostContext.h"
 
 // Standard functions
 
@@ -58,7 +58,7 @@ STDMETHODIMP SHTask::Alert() {
 }
 
 STDMETHODIMP SHTask::Join(/* in */ DWORD dwMilliseconds, /* in */ DWORD dwOption) {
-   return DHContext::HostWait(m_hThread, dwMilliseconds, dwOption);
+   return HostContext::HostWait(m_hThread, dwMilliseconds, dwOption);
 }
 
 STDMETHODIMP SHTask::SetPriority(/* in */ int newPriority) {

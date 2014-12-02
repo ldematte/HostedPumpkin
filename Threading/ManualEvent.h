@@ -4,20 +4,14 @@
 
 #include "../Common.h"
 
-#include "../Context.h"
-
-
-class SHManualEvent : public IHostManualEvent
-{
+class SHManualEvent : public IHostManualEvent {
 private:
    volatile LONG m_cRef;
    HANDLE m_hEvent;
-   DHContext *m_pContext;
+
 public:
    SHManualEvent(BOOL bInitialState);
    ~SHManualEvent();
-
-   void SetContext(DHContext *pContext) { m_pContext = pContext; };
 
    // IUnknown functions
    STDMETHODIMP_(DWORD) AddRef();

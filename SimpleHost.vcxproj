@@ -77,7 +77,7 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="Threading\AutoEvent.cpp" />
-    <ClCompile Include="Context.cpp" />
+    <ClCompile Include="HostContext.cpp" />
     <ClCompile Include="Threading\Crst.cpp" />
     <ClCompile Include="HostCtrl.cpp" />
     <ClCompile Include="Logger.cpp" />
@@ -95,7 +95,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Common.h" />
-    <ClInclude Include="Context.h" />
+    <ClInclude Include="HostContext.h" />
     <ClInclude Include="Threading\Crst.h" />
     <ClInclude Include="CrstLock.h" />
     <ClInclude Include="Threading\ManualEvent.h" />

@@ -1,6 +1,6 @@
 #include "Semaphore.h"
 
-#include "../Context.h"
+#include "../HostContext.h"
 #include "../Logger.h"
 
 // Standard functions
@@ -48,8 +48,7 @@ STDMETHODIMP SHSemaphore::QueryInterface(const IID &riid, void **ppvObject) {
 
 STDMETHODIMP SHSemaphore::Wait(DWORD dwMilliseconds, DWORD option) {
    Logger::Info("In Semaphore::Wait");
-
-   return DHContext::HostWait(m_hSemaphore, dwMilliseconds, option);
+   return HostContext::HostWait(m_hSemaphore, dwMilliseconds, option);
 }
 
 STDMETHODIMP SHSemaphore::ReleaseSemaphore(LONG lReleaseCount, LONG *lpPreviousCount) {

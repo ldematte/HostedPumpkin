@@ -8,6 +8,7 @@ class SHSemaphore : public IHostSemaphore {
 private:
    volatile LONG m_cRef;
    HANDLE m_hSemaphore;
+
 public:
    SHSemaphore(DWORD dwInitial, DWORD dwMax);
    ~SHSemaphore();

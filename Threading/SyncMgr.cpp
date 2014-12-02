@@ -1,6 +1,5 @@
 #include "SyncMgr.h"
 
-#include "../Context.h"
 #include "../Logger.h"
 
 // Include all the memory objects created by this manager
@@ -9,10 +8,9 @@
 #include "ManualEvent.h"
 #include "Semaphore.h"
 
-SHSyncManager::SHSyncManager(DHContext *pContext) {
+SHSyncManager::SHSyncManager() {
    m_cRef = 0;
    m_pCLRSyncManager = NULL;
-   m_pContext = pContext;
 }
 
 SHSyncManager::~SHSyncManager() {
@@ -118,9 +116,7 @@ STDMETHODIMP SHSyncManager::CreateMonitorEvent(/* in */ SIZE_T Cookie, /* out */
       return E_OUTOFMEMORY;
    }
 
-   pEvent->SetContext(m_pContext);
    pEvent->QueryInterface(IID_IHostAutoEvent, (void**) ppEvent);
-
    return S_OK;
 }
 
