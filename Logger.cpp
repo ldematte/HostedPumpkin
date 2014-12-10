@@ -23,7 +23,7 @@ static void now(char* buffer) {
 static void log(const char* level, const char* message) {
    char time_buffer[TIME_BUFFER_SIZE];
    now(time_buffer);
-   fprintf(stderr, "%s - [%s] &s\n", time_buffer, level, message);
+   fprintf(stderr, "%s - [%s] %s\n", time_buffer, level, message);
 }
 
 void Logger::Info(const char* format, ...) {

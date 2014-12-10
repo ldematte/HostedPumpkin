@@ -3,6 +3,7 @@
 #define HOST_CONTROL_H_INCLUDED
 
 #include "Common.h"
+#include "HostContext.h"
 
 class SHTaskManager;
 class SHSyncManager;
@@ -24,6 +25,8 @@ private:
    SHGCManager* gcManager;
    SHIoCompletionManager* iocpManager;
 
+   HostContext hostContext;
+
 public:
    DHHostControl(ICLRRuntimeHost *pRuntimeHost);
    ~DHHostControl();
@@ -39,6 +42,8 @@ public:
    // IHostControl functions
    STDMETHODIMP GetHostManager(const IID &riid, void **ppObject);
    STDMETHODIMP SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager);
+
+   ISimpleHostDomainManager* GetDomainManagerForDefaultDomain();
 };
 
 #endif //HOST_CONTROL_H_INCLUDED

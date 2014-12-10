@@ -4,8 +4,6 @@
 
 #include "../Common.h"
 
-class DHContext;
-
 class SHSyncManager : public IHostSyncManager {
 private:
    volatile LONG m_cRef;

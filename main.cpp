@@ -4,9 +4,76 @@
 
 #include "HostCtrl.h"
 
+#include "tclap/CmdLine.h"
+#include "tclap/ValueArg.h"
+#include "tclap/SwitchArg.h"
+#include "tclap/ArgException.h"
 
-int _tmain(int argc, _TCHAR* argv [])
+#include <string>
+#include <iostream>
+
+using namespace TCLAP;
+using namespace std;
+
+
+BSTR toBSTR(const std::string& s) {
+
+   int wslen = ::MultiByteToWideChar(CP_ACP, 0 /* no flags */,
+      s.data(), s.length(),
+      NULL, 0);
+
+   BSTR wsdata = ::SysAllocStringLen(NULL, wslen);
+   ::MultiByteToWideChar(CP_ACP, 0 /* no flags */,
+      s.data(), s.length(),
+      wsdata, wslen);
+
+   return wsdata;
+}
+
+wstring toWstring(const std::string& s) {
+   std::wstring ws(s.size(), L' ');
+   size_t charsConverted = 0;
+   mbstowcs_s(&charsConverted, &ws[0], ws.capacity(), s.c_str(), s.size());
+   ws.resize(charsConverted);
+   return ws;
+}
+
+
+int main(int argc, char* argv [])
 {
+
+   string clrVersion;
+   string assemblyFileName;
+   string typeName;
+   string methodName;
+
+   try {
+      CmdLine cmd("Simple CLR Host", ' ', "1.0");
+
+      ValueArg<string> clrVersionArg("v", "clrversion", "CLR version to use", true, "v2.0.50727", "string");
+      cmd.add(clrVersionArg);
+
+      ValueArg<string> assemblyFileNameArg("a", "assembly", "The assembly file name", true, "", "string");
+      cmd.add(assemblyFileNameArg);
+
+      ValueArg<string> typeNameArg("t", "type", "The type name which contains the method to invoke", false, "", "string");
+      cmd.add(typeNameArg);
+
+      ValueArg<string> methodNameArg("m", "method", "The method to invoke", false, "", "string");
+      cmd.add(methodNameArg);
+
+
+      cmd.parse(argc, argv);
+
+      // Get the argument values
+      clrVersion = clrVersionArg.getValue();
+      assemblyFileName = assemblyFileNameArg.getValue();
+      typeName = typeNameArg.getValue();
+      methodName = methodNameArg.getValue();
+   }
+   catch (ArgException &e) {
+      cerr << "error: " << e.error() << " for arg " << e.argId() << endl;
+   }
 
    HRESULT hr;
 
@@ -15,30 +82,20 @@ int _tmain(int argc, _TCHAR* argv [])
 
    // 
    // Load and start the .NET runtime.
-   // 
-
-   _TCHAR* clrVersion = L"v2.0.50727";
-   if (argc > 1) {
-      clrVersion = argv[0];
-   }
-
-   Logger::Info("Load and start the .NET runtime %s", argv[0]);
+   //    
+   Logger::Info("Load and start the .NET runtime %s", clrVersion.c_str());
 
    hr = CLRCreateInstance(CLSID_CLRMetaHost, IID_PPV_ARGS(&metaHost));
-   if (FAILED(hr))
-   {
-      wprintf(L"CLRCreateInstance failed w/hr 0x%08lx\n", hr);
-      return -1;
+   if (FAILED(hr)) {
+      Logger::Critical("CLRCreateInstance failed w/hr 0x%08lx\n", hr);
    }
 
    // Get the ICLRRuntimeInfo corresponding to a particular CLR version. It 
    // supersedes CorBindToRuntimeEx with STARTUP_LOADER_SAFEMODE.
-   hr = metaHost->GetRuntime(clrVersion, IID_PPV_ARGS(&runtimeInfo));
-   if (FAILED(hr))
-   {
-      wprintf(L"ICLRMetaHost::GetRuntime failed w/hr 0x%08lx\n", hr);
+   hr = metaHost->GetRuntime(toWstring(clrVersion).c_str(), IID_PPV_ARGS(&runtimeInfo));
+   if (FAILED(hr)) {
       metaHost->Release();
-      return -1;
+      Logger::Critical("ICLRMetaHost::GetRuntime failed w/hr 0x%08lx\n", hr);
    }
 
    // Check if the specified runtime can be loaded into the process. This 
@@ -47,20 +104,16 @@ int _tmain(int argc, _TCHAR* argv [])
    // be loaded in an in-process side-by-side fashion. 
    BOOL isLoadable;
    hr = runtimeInfo->IsLoadable(&isLoadable);
-   if (FAILED(hr))
-   {
-      wprintf(L"ICLRRuntimeInfo::IsLoadable failed w/hr 0x%08lx\n", hr);
+   if (FAILED(hr)) {
       runtimeInfo->Release();
       metaHost->Release();
-      return -1;
+      Logger::Critical("ICLRRuntimeInfo::IsLoadable failed w/hr 0x%08lx\n", hr);
    }
 
-   if (!isLoadable)
-   {
-      wprintf(L".NET runtime %s cannot be loaded\n", clrVersion);
+   if (!isLoadable) {
       runtimeInfo->Release();
-      metaHost->Release();
-      return -1;
+      metaHost->Release(); 
+      Logger::Critical(".NET runtime %s cannot be loaded\n", clrVersion);
    }
 
    // Load the CLR into the current process and return a runtime interface 
@@ -70,105 +123,62 @@ int _tmain(int argc, _TCHAR* argv [])
    // .NET Frameworks. 
 
    //ICorRuntimeHost *corRuntimeHost = NULL;
-   //hr = runtimeInfo->GetInterface(CLSID_CorRuntimeHost,
-   //	IID_PPV_ARGS(&corRuntimeHost));
+   //hr = runtimeInfo->GetInterface(CLSID_CorRuntimeHost, IID_PPV_ARGS(&corRuntimeHost));
 
-   ICLRRuntimeHost* clrRuntimeHost = NULL;
+   ICLRRuntimeHost* clr = NULL;
    hr = runtimeInfo->GetInterface(CLSID_CLRRuntimeHost,
-      IID_PPV_ARGS(&clrRuntimeHost));
-   if (FAILED(hr))
-   {
-      wprintf(L"ICLRRuntimeInfo::GetInterface failed w/hr 0x%08lx\n", hr);
+      IID_PPV_ARGS(&clr));
+   if (FAILED(hr)) {
       runtimeInfo->Release();
       metaHost->Release();
-      return -1;
+      Logger::Critical("ICLRRuntimeInfo::GetInterface failed w / hr 0x % 08lx\n", hr);
    }
 
-   // Start the CLR.
-   hr = clrRuntimeHost->Start();
-   if (FAILED(hr))
-   {
-      wprintf(L"CLR failed to start w/hr 0x%08lx\n", hr);
-      runtimeInfo->Release();
-      metaHost->Release();
-      clrRuntimeHost->Release();
-      return -1;
-   }
+   // Get the CLR control object
+   ICLRControl* clrControl = NULL;
+   clr->GetCLRControl(&clrControl);
+
+   // Associate our domain manager
+   clrControl->SetAppDomainManagerType(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad",
+      L"SimpleHostRuntime.SimpleHostAppDomainManager");
 
    // Construct our host control object.
-   DHHostControl* hostControl = new DHHostControl(clrRuntimeHost);
-   clrRuntimeHost->SetHostControl(hostControl);
+   DHHostControl* hostControl = new DHHostControl(clr);
+   clr->SetHostControl(hostControl);
 
-   // Now, begin the CLR.
-   hr = clrRuntimeHost->Start();
-   if (hr == S_FALSE)
-      wprintf(L"Runtime already started; probably OK to proceed");
-   else {
-      wprintf(L"Runtime startup failed (0x%x)", hr);
+   // Start the CLR.
+   hr = clr->Start();
+   if (FAILED(hr)) {      
       runtimeInfo->Release();
       metaHost->Release();
-      clrRuntimeHost->Release();
+      clr->Release();
+      Logger::Critical("CLR failed to start w/hr 0x%08lx %s", hr);
       return -1;
    }
 
-   // Construct the shim path
-   WCHAR wcShimPath[MAX_PATH];
-   if (!GetCurrentDirectoryW(MAX_PATH, wcShimPath)) {
-      wprintf(L"GetCurrentDirectory failed (0x%x)", HRESULT_FROM_WIN32(GetLastError()));
+   ISimpleHostDomainManager* domainManager = hostControl->GetDomainManagerForDefaultDomain();
+
+   if (!domainManager) {
+      Logger::Critical("Cannot obtain the Domain Manager for the Default Domain");
       runtimeInfo->Release();
       metaHost->Release();
-      clrRuntimeHost->Release();
+      clr->Release();
+
       return -1;
    }
 
-   wcsncat_s(wcShimPath, sizeof(wcShimPath) / sizeof(WCHAR), L"\\shim.exe", MAX_PATH - wcslen(wcShimPath) - 1);
-
-   // Gather the arguments to pass to the shim.
-   LPWSTR wcShimArgs = NULL;
-   if (argc > 1)
-   {
-      SIZE_T totalLength = 1; // 1 is the NULL terminator
-      for (int i = 1; i < argc; i++)
-      {
-         // TODO: add characters for quotes around args w/ spaces inside them
-         if (i != 1)
-            totalLength++; // add a space between args
-         totalLength += _tcslen(argv[i]) + 1;
-      }
-
-      wcShimArgs = new WCHAR[totalLength];
-      wcShimArgs[0] = '\0';
-
-      for (int i = 1; i < argc; i++)
-      {
-         if (i != 1)
-            wcscat_s(wcShimArgs, totalLength, L" ");
-         wcsncat_s(wcShimArgs, totalLength, argv[i], wcslen(argv[i]));
-      }
-   }
-
-   if (wcShimArgs == NULL)
-      Logger::Critical("Missing program path (host.exe <exePath>)");
-
-   // And execute the program...
-   DWORD retVal;
-   HRESULT hrExecute = clrRuntimeHost->ExecuteInDefaultAppDomain(
-      wcShimPath,
-      L"Shim",
-      L"Start",
-      wcShimArgs,
-      &retVal);
+   long retVal = 0L;
+   BSTR assemblyName = toBSTR(assemblyFileName);
+   HRESULT hrExecute = domainManager->raw_Run(assemblyName, &retVal);
 
    if (!SUCCEEDED(hrExecute))
-      Logger::Critical("Execution of shim failed: 0x%x", hrExecute);
-
-   if (wcShimArgs)
-      delete wcShimArgs;
+      Logger::Critical("Execution of method failed: 0x%x", hrExecute);
 
    // Stop the CLR and cleanup.
+   domainManager->Release();
    hostControl->ShuttingDown();
-   clrRuntimeHost->Stop();
-   clrRuntimeHost->Release();
+   clr->Stop();
+   clr->Release();
 
    return retVal;
 }

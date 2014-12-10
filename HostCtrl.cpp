@@ -101,6 +101,28 @@ STDMETHODIMP DHHostControl::GetHostManager(const IID &riid, void **ppvHostManage
 }
 
 STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager) {
-   Logger::Info("SetAppDomainManager: Not implemented");
-   return E_NOTIMPL;
+   Logger::Info("In HostControl::SetAppDomainManager");
+
+   ISimpleHostDomainManager* domainManager = NULL;
+   
+   HRESULT hr = pUnkAppDomainManager->QueryInterface(__uuidof(ISimpleHostDomainManager), (PVOID*) &domainManager);
+
+   if (SUCCEEDED(hr)) {
+      hostContext.appDomains.insert(std::make_pair(dwAppDomainID, domainManager));
+      if (hostContext.defaultDomainManager == NULL)
+         hostContext.defaultDomainManager = domainManager;
+   }
+   else {
+      hostContext.appDomains[dwAppDomainID] = NULL;
+   }
+
+   return hr;
 }
+
+ISimpleHostDomainManager* DHHostControl::GetDomainManagerForDefaultDomain() {
+   if (hostContext.defaultDomainManager)
+      hostContext.defaultDomainManager->AddRef();
+
+   return hostContext.defaultDomainManager;
+}
+
