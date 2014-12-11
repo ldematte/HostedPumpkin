@@ -15,7 +15,7 @@ private:
 
 public:
    SHTask(SHTaskManager *pTaskManager, HANDLE hThread);
-   ~SHTask();
+   virtual ~SHTask();
 
    HANDLE GetThreadHandle() { return m_hThread; };
 

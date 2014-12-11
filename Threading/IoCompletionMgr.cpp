@@ -15,7 +15,6 @@ int GetCpuCount() {
    return sysInfo.dwNumberOfProcessors;
 }
 
-
 SHIoCompletionManager::SHIoCompletionManager() {
    m_cRef = 0;
    clrIoCompletionManager = NULL;
@@ -79,7 +78,6 @@ STDMETHODIMP SHIoCompletionManager::QueryInterface(const IID &riid, void **ppvOb
 
 int SHIoCompletionManager::IndexOf(HANDLE hPort) {
    CrstLock(this->pLock);
-   int lastIndex = numberOfPorts - 1;
    for (int i = 0; i < numberOfPorts; ++i) {
       if (ports[numberOfPorts].hPort == hPort) {
          return i;
@@ -131,7 +129,6 @@ STDMETHODIMP SHIoCompletionManager::CloseIoCompletionPort(HANDLE hPort) {
    if (::CloseHandle(hPort)) {
 
       CrstLock(this->pLock);
-      int lastIndex = numberOfPorts - 1;
       for (int i = 0; i < numberOfPorts; ++i) {
          if (ports[numberOfPorts].hPort == hPort) {
             ports[i].hPort = NULL;
@@ -195,7 +192,7 @@ STDMETHODIMP SHIoCompletionManager::SetCLRIoCompletionManager(
 // The CLR calls the InitializeHostOverlapped method to give the host the opportunity to append 
 // custom data to an OVERLAPPED instance.
 STDMETHODIMP SHIoCompletionManager::InitializeHostOverlapped(
-   /* [in] */ void *pvOverlapped) {
+   /* [in] */ void* /*pvOverlapped*/) {
 
    Logger::Info("In InitializeHostOverlapped");
    // We do not need to append anything, thank you :)
@@ -238,7 +235,7 @@ bool SHIoCompletionManager::HasCompletionPortThreadpool(HANDLE hPort) {
 
 // If we had only one port, maybe we could use BindIoCompletionCallback
 // http://msdn.microsoft.com/en-us/library/aa363484%28VS.85%29.aspx
-// But we require an arbitrary number of ports, so...
+// But the CLR require an arbitrary number of ports, so we need to implement it ourselves
 STDMETHODIMP SHIoCompletionManager::Bind(
    /* [in] */ HANDLE hPort,
    /* [in] */ HANDLE hHandle) {

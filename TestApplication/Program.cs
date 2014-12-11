@@ -7,9 +7,11 @@ using System.Threading.Tasks;
 namespace TestApplication {
    class Program {
       static void Main(string[] args) {
-
          Console.WriteLine("Hello world!");
+      }
 
+      static void SomeOtherMethod() {
+         Console.WriteLine("Hello world, again!");
       }
    }
 }

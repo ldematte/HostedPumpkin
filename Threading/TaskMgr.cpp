@@ -5,6 +5,8 @@
 #include "../Logger.h"
 #include "../HostContext.h"
 
+//unreferenced formal parameter
+#pragma warning (disable: 4100)
 
 SHTaskManager::SHTaskManager() {
    m_cRef = 0;

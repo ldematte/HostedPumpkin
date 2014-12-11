@@ -81,7 +81,7 @@ STDMETHODIMP SHSyncManager::CreateCrstWithSpinCount(/* in */ DWORD dwSpinCount, 
 STDMETHODIMP SHSyncManager::CreateAutoEvent(/* out */IHostAutoEvent **ppEvent) {
    Logger::Info("In SyncManager::CreateAutoEvent");
 
-   SHAutoEvent* pEvent = new SHAutoEvent(-1);
+   SHAutoEvent* pEvent = new SHAutoEvent((SIZE_T)-1);
    if (!pEvent) {
       Logger::Error("Failed to allocate a new AutoEvent");
       *ppEvent = NULL;
@@ -123,7 +123,7 @@ STDMETHODIMP SHSyncManager::CreateMonitorEvent(/* in */ SIZE_T Cookie, /* out */
 STDMETHODIMP SHSyncManager::CreateRWLockWriterEvent(/* in */ SIZE_T Cookie, /* out */ IHostAutoEvent **ppEvent) {
    Logger::Info("In SyncManager::CreateRWLockWriterEvent");
 
-   SHAutoEvent* pEvent = new SHAutoEvent(-1);
+   SHAutoEvent* pEvent = new SHAutoEvent(Cookie);
    if (!pEvent) {
       Logger::Error("Failed to allocate a new AutoEvent");
       *ppEvent = NULL;
@@ -137,7 +137,7 @@ STDMETHODIMP SHSyncManager::CreateRWLockWriterEvent(/* in */ SIZE_T Cookie, /* o
 STDMETHODIMP SHSyncManager::CreateRWLockReaderEvent(/* in */ BOOL bInitialState, /* in */ SIZE_T Cookie, /* out */ IHostManualEvent **ppEvent) {
    Logger::Info("In SyncManager::CreateRWLockReaderEvent");
 
-   SHAutoEvent* pEvent = new SHAutoEvent(-1);
+   SHAutoEvent* pEvent = new SHAutoEvent(Cookie, bInitialState);
    if (!pEvent) {
       Logger::Error("Failed to allocate a new AutoEvent");
       *ppEvent = NULL;

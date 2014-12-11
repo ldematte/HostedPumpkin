@@ -3,9 +3,10 @@
 #include "../Logger.h"
 #include "../HostContext.h"
 
-SHAutoEvent::SHAutoEvent(SIZE_T cookie) {
+
+SHAutoEvent::SHAutoEvent(SIZE_T cookie, BOOL bInitialState) {
    m_cRef = 0;
-   m_hEvent = CreateEvent(NULL, FALSE, FALSE, NULL);
+   m_hEvent = CreateEvent(NULL, FALSE, bInitialState, NULL);
    if (!m_hEvent)
       Logger::Critical("Error creating auto event: %d", GetLastError());
    m_cookie = cookie;

@@ -1,6 +1,7 @@
 #include "Task.h"
 
 #include "../HostContext.h"
+#include "../Logger.h"
 
 // Standard functions
 
@@ -45,8 +46,9 @@ STDMETHODIMP SHTask::QueryInterface(const IID &riid, void **ppvObject) {
 // IHostTask functions
 
 STDMETHODIMP SHTask::Start() {
+   Logger::Info("In Task::Start");
    if (!ResumeThread(m_hThread)) {
-      _ASSERTE(!"Couldn't resume thread");
+      Logger::Error("Couldn't resume thread");
       return HRESULT_FROM_WIN32(GetLastError());
    }
 
@@ -54,16 +56,19 @@ STDMETHODIMP SHTask::Start() {
 }
 
 STDMETHODIMP SHTask::Alert() {
+   Logger::Info("In Task::Alert");
    return S_OK;
 }
 
 STDMETHODIMP SHTask::Join(/* in */ DWORD dwMilliseconds, /* in */ DWORD dwOption) {
+   Logger::Info("In Task::Join %d milliseconds, %d options", dwMilliseconds, dwOption);
    return HostContext::HostWait(m_hThread, dwMilliseconds, dwOption);
 }
 
 STDMETHODIMP SHTask::SetPriority(/* in */ int newPriority) {
+   Logger::Info("In Task::SetPriority %d", newPriority);
    if (!SetThreadPriority(m_hThread, newPriority)) {
-      _ASSERTE(!"Couldn't set thread-priority");
+      Logger::Error("Couldn't set thread-priority");
       return HRESULT_FROM_WIN32(GetLastError());
    }
 
@@ -71,11 +76,13 @@ STDMETHODIMP SHTask::SetPriority(/* in */ int newPriority) {
 }
 
 STDMETHODIMP SHTask::GetPriority(/* out */ int *pPriority) {
+   Logger::Info("In Task::GetPriority");
    *pPriority = GetThreadPriority(m_hThread);
    return S_OK;
 }
 
 STDMETHODIMP SHTask::SetCLRTask(/* in */ ICLRTask *pCLRTask) {
+   Logger::Info("In Task::SetCLRTask");
    m_pCLRTask = pCLRTask;
    return S_OK;
 }

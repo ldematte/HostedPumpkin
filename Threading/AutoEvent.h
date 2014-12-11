@@ -12,8 +12,8 @@ private:
    SIZE_T m_cookie;
 
 public:
-   SHAutoEvent(SIZE_T cookie);
-   ~SHAutoEvent();
+   SHAutoEvent(SIZE_T cookie, BOOL bInitialState = FALSE);
+   virtual ~SHAutoEvent();
 
    // IUnknown functions
    STDMETHODIMP_(DWORD) AddRef();

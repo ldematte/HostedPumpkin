@@ -43,6 +43,8 @@ public:
    STDMETHODIMP SetStackGuarantee(/* in */ ULONG guarantee);
    STDMETHODIMP GetStackGuarantee(/* out */ ULONG *pGuarantee);
    STDMETHODIMP SetCLRTaskManager(/* in */ ICLRTaskManager *pManager);
+
+   ICLRTaskManager* GetCLRTaskManager() { return m_pCLRTaskManager; }
 };
 
 #endif //TASK_MANAGER_H_INCLUDED

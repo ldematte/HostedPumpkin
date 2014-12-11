@@ -16,18 +16,14 @@ using namespace TCLAP;
 using namespace std;
 
 
-BSTR toBSTR(const std::string& s) {
+bstr_t toBSTR(const std::string& s) {
+   return bstr_t(s.c_str());
+}
 
-   int wslen = ::MultiByteToWideChar(CP_ACP, 0 /* no flags */,
-      s.data(), s.length(),
-      NULL, 0);
-
-   BSTR wsdata = ::SysAllocStringLen(NULL, wslen);
-   ::MultiByteToWideChar(CP_ACP, 0 /* no flags */,
-      s.data(), s.length(),
-      wsdata, wslen);
-
-   return wsdata;
+bstr_t CurrentDirectory() {
+   wchar_t buffer[MAX_PATH + 1];
+   ::GetCurrentDirectoryW(sizeof(buffer), buffer);
+   return bstr_t(buffer);
 }
 
 wstring toWstring(const std::string& s) {
@@ -47,8 +43,8 @@ int main(int argc, char* argv [])
    string typeName;
    string methodName;
 
-   try {
-      CmdLine cmd("Simple CLR Host", ' ', "1.0");
+   CmdLine cmd("Simple CLR Host", ' ', "1.0");
+   try {     
 
       ValueArg<string> clrVersionArg("v", "clrversion", "CLR version to use", true, "v2.0.50727", "string");
       cmd.add(clrVersionArg);
@@ -61,9 +57,18 @@ int main(int argc, char* argv [])
 
       ValueArg<string> methodNameArg("m", "method", "The method to invoke", false, "", "string");
       cmd.add(methodNameArg);
-
-
+      
       cmd.parse(argc, argv);
+
+      if (typeNameArg.isSet() != methodNameArg.isSet()) {
+         CmdLineParseException error("You should specify both the type and method name, or neither");
+         try {            
+            cmd.getOutput()->failure(cmd, error);
+         }
+         catch (ExitException &ee) {
+            exit(ee.getExitStatus());
+         }
+      }
 
       // Get the argument values
       clrVersion = clrVersionArg.getValue();
@@ -72,7 +77,8 @@ int main(int argc, char* argv [])
       methodName = methodNameArg.getValue();
    }
    catch (ArgException &e) {
-      cerr << "error: " << e.error() << " for arg " << e.argId() << endl;
+      cerr << "Error: " << e.error() << " for arg " << e.argId() << endl;      
+      return 1;
    }
 
    HRESULT hr;
@@ -88,6 +94,7 @@ int main(int argc, char* argv [])
    hr = CLRCreateInstance(CLSID_CLRMetaHost, IID_PPV_ARGS(&metaHost));
    if (FAILED(hr)) {
       Logger::Critical("CLRCreateInstance failed w/hr 0x%08lx\n", hr);
+      return -1;
    }
 
    // Get the ICLRRuntimeInfo corresponding to a particular CLR version. It 
@@ -96,6 +103,7 @@ int main(int argc, char* argv [])
    if (FAILED(hr)) {
       metaHost->Release();
       Logger::Critical("ICLRMetaHost::GetRuntime failed w/hr 0x%08lx\n", hr);
+      return -1;
    }
 
    // Check if the specified runtime can be loaded into the process. This 
@@ -108,12 +116,14 @@ int main(int argc, char* argv [])
       runtimeInfo->Release();
       metaHost->Release();
       Logger::Critical("ICLRRuntimeInfo::IsLoadable failed w/hr 0x%08lx\n", hr);
+      return -1;
    }
 
    if (!isLoadable) {
       runtimeInfo->Release();
       metaHost->Release(); 
       Logger::Critical(".NET runtime %s cannot be loaded\n", clrVersion);
+      return -1;
    }
 
    // Load the CLR into the current process and return a runtime interface 
@@ -126,12 +136,13 @@ int main(int argc, char* argv [])
    //hr = runtimeInfo->GetInterface(CLSID_CorRuntimeHost, IID_PPV_ARGS(&corRuntimeHost));
 
    ICLRRuntimeHost* clr = NULL;
-   hr = runtimeInfo->GetInterface(CLSID_CLRRuntimeHost,
-      IID_PPV_ARGS(&clr));
+   hr = runtimeInfo->GetInterface(CLSID_CLRRuntimeHost, IID_PPV_ARGS(&clr));
+
    if (FAILED(hr)) {
       runtimeInfo->Release();
       metaHost->Release();
       Logger::Critical("ICLRRuntimeInfo::GetInterface failed w / hr 0x % 08lx\n", hr);
+      return -1;
    }
 
    // Get the CLR control object
@@ -150,34 +161,56 @@ int main(int argc, char* argv [])
    hr = clr->Start();
    if (FAILED(hr)) {      
       runtimeInfo->Release();
-      metaHost->Release();
+      metaHost->Release();      
       clr->Release();
-      Logger::Critical("CLR failed to start w/hr 0x%08lx %s", hr);
+      clrControl->Release();
+      Logger::Critical("CLR failed to start w/hr 0x%08lx", hr);
       return -1;
    }
 
    ISimpleHostDomainManager* domainManager = hostControl->GetDomainManagerForDefaultDomain();
 
    if (!domainManager) {
-      Logger::Critical("Cannot obtain the Domain Manager for the Default Domain");
       runtimeInfo->Release();
       metaHost->Release();
       clr->Release();
-
+      clrControl->Release();
+      Logger::Critical("Cannot obtain the Domain Manager for the Default Domain");
       return -1;
    }
 
-   long retVal = 0L;
-   BSTR assemblyName = toBSTR(assemblyFileName);
-   HRESULT hrExecute = domainManager->raw_Run(assemblyName, &retVal);
+   int retVal = 0;
+   long appDomainId = 0L;
+   HRESULT hrExecute;
 
-   if (!SUCCEEDED(hrExecute))
-      Logger::Critical("Execution of method failed: 0x%x", hrExecute);
+   bstr_t assemblyName = toBSTR(assemblyFileName);  
+   
+   if (methodName != "") {
+      bstr_t type = toBSTR(typeName);
+      bstr_t method = toBSTR(methodName);
+      hrExecute = domainManager->raw_Run_2(assemblyName, type, method, &appDomainId);
+   }
+   else {
+      hrExecute = domainManager->raw_Run(assemblyName, &appDomainId);
+   }
+
+   if (!SUCCEEDED(hrExecute)) {
+      Logger::Critical("Execution of method failed: 0x%x", hrExecute);      
+      retVal = -1;
+   }
+   else {
+      Logger::Info("Executed code in AppDomain %ld", appDomainId);
+   }
 
    // Stop the CLR and cleanup.
-   domainManager->Release();
    hostControl->ShuttingDown();
-   clr->Stop();
+
+   runtimeInfo->Release();
+   metaHost->Release();
+   clrControl->Release();
+   domainManager->Release();
+
+   clr->Stop();   
    clr->Release();
 
    return retVal;

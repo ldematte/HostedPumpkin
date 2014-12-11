@@ -100,20 +100,20 @@ STDMETHODIMP SHThreadpoolManager::GetMaxThreads(
 // We can choose to ignore the following requests 
 // (and we will, since the standard Win32 API gives no way of setting/getting this info)
 STDMETHODIMP SHThreadpoolManager::GetAvailableThreads(
-   /* [out] */ DWORD *pdwAvailableWorkerThreads) {
+   /* [out] */ DWORD * /*pdwAvailableWorkerThreads*/) {
    Logger::Info("In GetAvailableThreads");
    return E_NOTIMPL;
 }
 
 STDMETHODIMP SHThreadpoolManager::SetMinThreads(
-   /* [in] */ DWORD dwMinIOCompletionThreads) {
+   /* [in] */ DWORD /*dwMinIOCompletionThreads*/) {
 
    Logger::Info("In SetMinThreads");   
    return E_NOTIMPL;
 }
 
 STDMETHODIMP SHThreadpoolManager::GetMinThreads(
-   /* [out] */ DWORD *pdwMinIOCompletionThreads) {
+   /* [out] */ DWORD* /*pdwMinIOCompletionThreads*/) {
 
    Logger::Info("In GetMinThreads");
    return E_NOTIMPL;
