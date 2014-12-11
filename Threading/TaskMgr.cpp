@@ -18,18 +18,16 @@ SHTaskManager::SHTaskManager() {
    }
 
    // Instantiate maps and associated critical sections.
-   m_pThreadMap = new std::map < DWORD, IHostTask* > ;
    m_pThreadMapCrst = new CRITICAL_SECTION;
 
-   if (!m_pThreadMap || !m_pThreadMapCrst)
-      Logger::Critical("Failed to allocate new map or CRST");
+   if (!m_pThreadMapCrst)
+      Logger::Critical("Failed to allocate new CRST");
 
    InitializeCriticalSection(m_pThreadMapCrst);
 }
 
 SHTaskManager::~SHTaskManager() {
    if (m_hSleepEvent) CloseHandle(m_hSleepEvent);
-   if (m_pThreadMap) delete m_pThreadMap;
    if (m_pThreadMapCrst) DeleteCriticalSection(m_pThreadMapCrst);
    if (m_pCLRTaskManager) m_pCLRTaskManager->Release();
 }
@@ -59,17 +57,21 @@ STDMETHODIMP SHTaskManager::QueryInterface(const IID &riid, void **ppvObject) {
 }
 
 // IHostTaskManager functions
+void SHTaskManager::AddManagedTask(ICLRTask* managedTask, DWORD nativeThreadId) {
+    managedThreadMap.insert(std::make_pair(managedTask, nativeThreadId));
+}
 
 STDMETHODIMP SHTaskManager::GetCurrentTask(/* out */ IHostTask **pTask) {
    Logger::Info("TaskManager::GetCurrentTask");
    DWORD currentThreadId = GetCurrentThreadId();
 
    CrstLock crst(m_pThreadMapCrst);
-   std::map<DWORD, IHostTask*>::iterator match = m_pThreadMap->find(currentThreadId);
-   if (match == m_pThreadMap->end()) {
-      // No match was found, create one for the currently executing thread.
-      *pTask = new SHTask(this, GetCurrentThread());
-      m_pThreadMap->insert(std::map<DWORD, IHostTask*>::value_type(currentThreadId, *pTask));
+   std::map<DWORD, IHostTask*>::iterator match = nativeThreadMap.find(currentThreadId);
+   if (match == nativeThreadMap.end()) {
+      // No match was found, create one for the currently executing thread.      
+      *pTask = new SHTask(this, currentThreadId);
+      Logger::Debug("Created task for EXISTING thread %d - %x", currentThreadId, pTask);
+      nativeThreadMap.insert(std::map<DWORD, IHostTask*>::value_type(currentThreadId, *pTask));
    }
    else {
       *pTask = match->second;
@@ -91,15 +93,16 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
       CREATE_SUSPENDED | STACK_SIZE_PARAM_IS_A_RESERVATION,
       &dwThreadId);
 
-   IHostTask* task = new SHTask(this, hThread);
+   IHostTask* task = new SHTask(this, dwThreadId, hThread);
    if (!task) {
       Logger::Error("Failed to allocate task");
       *ppTask = NULL;
       return E_OUTOFMEMORY;
    }
+   Logger::Debug("Created task for NEW thread %d - %x -- child of %d", dwThreadId, task, ::GetCurrentThreadId());
 
    CrstLock crst(m_pThreadMapCrst);
-   m_pThreadMap->insert(std::map<DWORD, IHostTask*>::value_type(dwThreadId, task));
+   nativeThreadMap.insert(std::map<DWORD, IHostTask*>::value_type(dwThreadId, task));
    crst.Exit();
 
    task->AddRef();

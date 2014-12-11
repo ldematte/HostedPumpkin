@@ -10,11 +10,14 @@ class SHTask : public IHostTask {
 private:
    volatile LONG m_cRef;
    HANDLE m_hThread;
+   DWORD m_nativeId;
+
    SHTaskManager *m_pTaskManager;
    ICLRTask *m_pCLRTask;
 
 public:
-   SHTask(SHTaskManager *pTaskManager, HANDLE hThread);
+   SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId, HANDLE hThread);
+   SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId);
    virtual ~SHTask();
 
    HANDLE GetThreadHandle() { return m_hThread; };

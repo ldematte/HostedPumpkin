@@ -104,7 +104,13 @@ STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *p
    Logger::Info("In HostControl::SetAppDomainManager");
 
    ISimpleHostDomainManager* domainManager = NULL;
-   
+
+   ICLRTask* currentTask;
+   taskManager->GetCLRTaskManager()->GetCurrentTask(&currentTask);
+   Logger::Info("Current task is %x - (on thread %x)", currentTask, ::GetCurrentThreadId());
+   //[out] A pointer to the address of an ICLRTask instance that is currently executing on the operating system thread 
+   //from which the call originated, or null if no task is currently executing on this thread.
+
    HRESULT hr = pUnkAppDomainManager->QueryInterface(__uuidof(ISimpleHostDomainManager), (PVOID*) &domainManager);
 
    if (SUCCEEDED(hr)) {

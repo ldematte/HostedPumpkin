@@ -9,6 +9,8 @@
 static const size_t TIME_BUFFER_SIZE = 80;
 static const size_t LINE_BUFFER_SIZE = 160;
 
+LogLevel::Level Logger::currentLevel = LogLevel::Debug;
+
 // Ugly, but faster than returning a std::string
 static void now(char* buffer) {
    time_t rawtime;
@@ -27,6 +29,9 @@ static void log(const char* level, const char* message) {
 }
 
 void Logger::Info(const char* format, ...) {
+   if (currentLevel > LogLevel::Info)
+      return;
+
    char line_buffer[LINE_BUFFER_SIZE];
 
    va_list ap;
@@ -37,7 +42,23 @@ void Logger::Info(const char* format, ...) {
    log("INFO", line_buffer);
 }
 
+void Logger::Debug(const char* format, ...) {
+   if (currentLevel > LogLevel::Debug)
+      return;
+
+   char line_buffer[LINE_BUFFER_SIZE];
+
+   va_list ap;
+   va_start(ap, format);
+   vsnprintf_s(line_buffer, LINE_BUFFER_SIZE, format, ap);
+   va_end(ap);
+
+   log("DEBUG", line_buffer);
+}
+
 void Logger::Error(const char* format, ...) {
+   if (currentLevel > LogLevel::Error)
+      return;
    char line_buffer[LINE_BUFFER_SIZE];
 
    va_list ap;

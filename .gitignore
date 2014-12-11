@@ -7,3 +7,4 @@ Release/*
 */bin/*
 */obj/*
 *.dll
+*.tlb

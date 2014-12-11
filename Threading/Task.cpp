@@ -5,16 +5,29 @@
 
 // Standard functions
 
-SHTask::SHTask(SHTaskManager *pTaskManager, HANDLE hThread) {
+SHTask::SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId, HANDLE hThread) {
    m_cRef = 0;
    m_pTaskManager = pTaskManager;
    m_pTaskManager->AddRef();
+   m_nativeId = nativeThreadId;
    m_hThread = hThread;
+   m_pCLRTask = NULL;
+}
+
+// For the current thread
+SHTask::SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId) {
+   m_cRef = 0;
+   m_pTaskManager = pTaskManager;
+   m_pTaskManager->AddRef();
+   m_nativeId = nativeThreadId;
+   DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &m_hThread, 0, FALSE, DUPLICATE_SAME_ACCESS);
    m_pCLRTask = NULL;
 }
 
 SHTask::~SHTask() {
    //TODO: shutdown thread?
+   CloseHandle(m_hThread);
+
    if (m_pTaskManager) m_pTaskManager->Release();
    if (m_pCLRTask) m_pCLRTask->Release();
 }
@@ -82,7 +95,8 @@ STDMETHODIMP SHTask::GetPriority(/* out */ int *pPriority) {
 }
 
 STDMETHODIMP SHTask::SetCLRTask(/* in */ ICLRTask *pCLRTask) {
-   Logger::Info("In Task::SetCLRTask");
+   Logger::Debug("In Task::SetCLRTask clr: %x, host: %x (%d)", pCLRTask, this, m_nativeId);
+   m_pTaskManager->AddManagedTask(pCLRTask, m_nativeId);
    m_pCLRTask = pCLRTask;
    return S_OK;
 }

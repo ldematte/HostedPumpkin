@@ -11,7 +11,9 @@ class SHTaskManager : public IHostTaskManager {
 private:
    volatile LONG m_cRef;
    ICLRTaskManager *m_pCLRTaskManager;
-   std::map<DWORD, IHostTask*> *m_pThreadMap;
+   std::map<DWORD, IHostTask*> nativeThreadMap;
+   std::map<ICLRTask*, DWORD> managedThreadMap;
+
    LPCRITICAL_SECTION m_pThreadMapCrst;
    HANDLE m_hSleepEvent;
 
@@ -45,6 +47,8 @@ public:
    STDMETHODIMP SetCLRTaskManager(/* in */ ICLRTaskManager *pManager);
 
    ICLRTaskManager* GetCLRTaskManager() { return m_pCLRTaskManager; }
+   void AddManagedTask(ICLRTask* managedTask, DWORD nativeThreadId);
+
 };
 
 #endif //TASK_MANAGER_H_INCLUDED
