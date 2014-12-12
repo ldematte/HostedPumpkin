@@ -11,24 +11,21 @@
 SHTaskManager::SHTaskManager() {
    m_cRef = 0;
    m_pCLRTaskManager = NULL;
-   m_hSleepEvent = CreateEvent(NULL, TRUE, FALSE, NULL);
-
-   if (!m_hSleepEvent) {
-      Logger::Critical("Failed to create a new sleep event");
-   }
-
+   
    // Instantiate maps and associated critical sections.
-   m_pThreadMapCrst = new CRITICAL_SECTION;
+   nativeThreadMapCrst = new CRITICAL_SECTION;
+   managedThreadMapCrst = new CRITICAL_SECTION;
 
-   if (!m_pThreadMapCrst)
-      Logger::Critical("Failed to allocate new CRST");
+   if (!nativeThreadMapCrst || !managedThreadMapCrst)
+      Logger::Critical("Failed to allocate critical sections");
 
-   InitializeCriticalSection(m_pThreadMapCrst);
+   InitializeCriticalSection(nativeThreadMapCrst);
+   InitializeCriticalSection(managedThreadMapCrst);
 }
 
 SHTaskManager::~SHTaskManager() {
-   if (m_hSleepEvent) CloseHandle(m_hSleepEvent);
-   if (m_pThreadMapCrst) DeleteCriticalSection(m_pThreadMapCrst);
+   if (nativeThreadMapCrst) DeleteCriticalSection(nativeThreadMapCrst);
+   if (managedThreadMapCrst) DeleteCriticalSection(managedThreadMapCrst);
    if (m_pCLRTaskManager) m_pCLRTaskManager->Release();
 }
 
@@ -57,15 +54,11 @@ STDMETHODIMP SHTaskManager::QueryInterface(const IID &riid, void **ppvObject) {
 }
 
 // IHostTaskManager functions
-void SHTaskManager::AddManagedTask(ICLRTask* managedTask, DWORD nativeThreadId) {
-    managedThreadMap.insert(std::make_pair(managedTask, nativeThreadId));
-}
-
 STDMETHODIMP SHTaskManager::GetCurrentTask(/* out */ IHostTask **pTask) {
    Logger::Info("TaskManager::GetCurrentTask");
    DWORD currentThreadId = GetCurrentThreadId();
 
-   CrstLock crst(m_pThreadMapCrst);
+   CrstLock crst(nativeThreadMapCrst);
    std::map<DWORD, IHostTask*>::iterator match = nativeThreadMap.find(currentThreadId);
    if (match == nativeThreadMap.end()) {
       // No match was found, create one for the currently executing thread.      
@@ -101,7 +94,7 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
    }
    Logger::Debug("Created task for NEW thread %d - %x -- child of %d", dwThreadId, task, ::GetCurrentThreadId());
 
-   CrstLock crst(m_pThreadMapCrst);
+   CrstLock crst(nativeThreadMapCrst);
    nativeThreadMap.insert(std::map<DWORD, IHostTask*>::value_type(dwThreadId, task));
    crst.Exit();
 
@@ -211,4 +204,43 @@ STDMETHODIMP SHTaskManager::GetStackGuarantee(/* out */ ULONG *pGuarantee) {
 STDMETHODIMP SHTaskManager::SetCLRTaskManager(/* in */ ICLRTaskManager *pManager) {
    m_pCLRTaskManager = pManager;
    return S_OK;
+}
+
+// Estra bookeeping functions
+void SHTaskManager::AddManagedTask(IHostTask* hostTask, ICLRTask* managedTask, DWORD nativeThreadId) {
+#ifdef _DEBUG
+   {
+      CrstLock lock(nativeThreadMapCrst);
+      auto iter = nativeThreadMap.find(nativeThreadId);
+      if (iter == nativeThreadMap.end()) {
+         Logger::Error("Cannot find Native task %d (%x)", nativeThreadId, nativeThreadId);
+      }
+      else {
+         if (iter->second != hostTask) {
+            Logger::Critical("Native task for %d mismatch! (%x - %x)", nativeThreadId, iter->second, hostTask);
+         }
+      }
+   }
+#endif
+   managedTask->AddRef();
+   CrstLock managedMapLock(managedThreadMapCrst);
+   managedThreadMap.insert(std::make_pair(nativeThreadId, managedTask));
+   managedMapLock.Exit();
+}
+
+void SHTaskManager::RemoveTask(DWORD nativeThreadId) {
+
+   CrstLock nativeMapLock(nativeThreadMapCrst);
+   nativeThreadMap.erase(nativeThreadId);
+   // TODO: from other locations as well!   
+   nativeMapLock.Exit();
+   
+   CrstLock managedMapLock(managedThreadMapCrst);
+   auto managedTask = managedThreadMap.find(nativeThreadId);
+   if (managedTask != managedThreadMap.end()) {
+      // TODO: call ExitTask too?
+      managedTask->second->Release();
+      managedThreadMap.erase(managedTask);
+   }
+   managedMapLock.Exit();
 }

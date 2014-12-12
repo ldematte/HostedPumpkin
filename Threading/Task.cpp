@@ -3,6 +3,8 @@
 #include "../HostContext.h"
 #include "../Logger.h"
 
+const int INVALID_THREAD_ID = 0;
+
 // Standard functions
 
 SHTask::SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId, HANDLE hThread) {
@@ -25,8 +27,15 @@ SHTask::SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId) {
 }
 
 SHTask::~SHTask() {
+   if (m_nativeId != INVALID_THREAD_ID) {
+      m_pTaskManager->RemoveTask(m_nativeId);
+   }
+   
    //TODO: shutdown thread?
-   CloseHandle(m_hThread);
+
+   if (m_hThread != INVALID_HANDLE_VALUE) {
+      CloseHandle(m_hThread);
+   }
 
    if (m_pTaskManager) m_pTaskManager->Release();
    if (m_pCLRTask) m_pCLRTask->Release();
@@ -68,8 +77,13 @@ STDMETHODIMP SHTask::Start() {
    return S_OK;
 }
 
+VOID WINAPI APCFunc(ULONG_PTR) {
+   //Nothing to do in here
+}
+
 STDMETHODIMP SHTask::Alert() {
    Logger::Info("In Task::Alert");
+   QueueUserAPC(APCFunc, m_hThread, NULL);
    return S_OK;
 }
 
@@ -95,8 +109,8 @@ STDMETHODIMP SHTask::GetPriority(/* out */ int *pPriority) {
 }
 
 STDMETHODIMP SHTask::SetCLRTask(/* in */ ICLRTask *pCLRTask) {
-   Logger::Debug("In Task::SetCLRTask clr: %x, host: %x (%d)", pCLRTask, this, m_nativeId);
-   m_pTaskManager->AddManagedTask(pCLRTask, m_nativeId);
+   Logger::Debug("In Task::SetCLRTask for %d -- clr: %x, host: %x", m_nativeId, pCLRTask, this);
+   m_pTaskManager->AddManagedTask(this, pCLRTask, m_nativeId);
    m_pCLRTask = pCLRTask;
    return S_OK;
 }
