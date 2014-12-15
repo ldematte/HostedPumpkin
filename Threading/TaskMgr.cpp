@@ -229,6 +229,7 @@ void SHTaskManager::AddManagedTask(IHostTask* hostTask, ICLRTask* managedTask, D
 }
 
 void SHTaskManager::RemoveTask(DWORD nativeThreadId) {
+   Logger::Debug("In TaskManager::RemoveTask: %d", nativeThreadId);
 
    CrstLock nativeMapLock(nativeThreadMapCrst);
    nativeThreadMap.erase(nativeThreadId);

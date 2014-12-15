@@ -78,6 +78,13 @@ namespace SimpleHostRuntime {
          // To do this, adjust the DefaultGrantSet and FullTrustAssemblies properties on the ApplicationTrust 
          // object that is assigned to the AppDomainSetup.ApplicationTrust property of appDomainInfo, before 
          // you initialize the application domain.
+
+         //if (AppDomain.CurrentDomain.IsDefaultAppDomain()) {
+            new ReflectionPermission(PermissionState.Unrestricted).Assert();
+            AppDomain.CurrentDomain.AssemblyResolve += domain_AssemblyResolve;
+            AppDomain.CurrentDomain.AssemblyLoad += domain_AssemblyLoad;
+            ReflectionPermission.RevertAssert();
+         //}
       }
 
       private static AppDomain CreateSandbox(string sandboxName) {
@@ -86,6 +93,12 @@ namespace SimpleHostRuntime {
          //other than the one in which the sandboxer resides.
          AppDomainSetup adSetup = new AppDomainSetup();
          adSetup.ApplicationBase = "NOT_A_PATH";
+         // Do not search the application base directory at all
+         adSetup.DisallowApplicationBaseProbing = true;
+
+         // With the restrictions we have this should never work anyway.
+         // But let's set it in case future versions allow some sort of network access anyway..
+         adSetup.DisallowCodeDownload = true;
 
          //Setting the permissions for the AppDomain. We give the permission to execute and to 
          //read/discover the location where the untrusted code is loaded.
@@ -111,13 +124,13 @@ namespace SimpleHostRuntime {
 
       private int RunInDomain(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName) {
          var manager = (SimpleHostAppDomainManager)ad.DomainManager;
-         manager.InternalRun(assemblyFileName, mainTypeName, methodName);
+         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName);
          return ad.Id;
       }
 
       private int RunInDomainAsync(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName) {
          var manager = (SimpleHostAppDomainManager)ad.DomainManager;
-         manager.InternalRun(assemblyFileName, mainTypeName, methodName);
+         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName);
          return ad.Id;
       }
 
@@ -140,14 +153,37 @@ namespace SimpleHostRuntime {
          var ad = CreateSandbox("Host Sandbox Domain");
          return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName);
       }
+
+      static Assembly domain_AssemblyResolve(object sender, ResolveEventArgs args) {
+
+         // TODO: Here we have a list of the assemblies we allow in the sandbox.
+         // They may be stored in a local dir, or in a DB. Locate them, deserialize (if needed)
+         // and load
+
+         var domainManagerAssembly = typeof(SimpleHostAppDomainManager).Assembly;
+         if (args.Name.Equals(domainManagerAssembly.FullName)) {
+
+            // NOTE: if you want to load it from DB or file, you will need to asser permission here
+            // or the load will fail (no permissions in this sandbox). At least, you need System.Security.Permissions and 
+            // System.Security.Permissions.FileIOPermission
+            // Assembly.LoadFrom(monitorAssembly.Location);
+            return domainManagerAssembly;
+         }
+
+         return null;
+      }
+
+      private void domain_AssemblyLoad(object sender, AssemblyLoadEventArgs args) {
+         System.Diagnostics.Debug.WriteLine("Loaded: " + args.LoadedAssembly.FullName);
+      }
       
-      private void InternalRun(string assemblyFileName, string mainTypeName, string methodName) {
+      private void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName) {
 
          try {
             // Use this "trick" to go through the standard loader path.
             // This MAY be something we want, or something to avoid
             AssemblyName an = AssemblyName.GetAssemblyName(assemblyFileName);
-            var clientAssembly = Assembly.Load(an);
+            var clientAssembly = appDomain.Load(an);
 
             status = Status.Running;
             // Here we already are on the new domain

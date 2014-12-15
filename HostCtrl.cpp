@@ -8,10 +8,11 @@
 #include "Memory\GCMgr.h"
 #include "Threading\ThreadpoolMgr.h"
 #include "Threading\IoCompletionMgr.h"
+#include "Assembly\AssemblyMgr.h"
 
 #include "Logger.h"
 
-DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost) {
+DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<AssemblyInfo>& hostAssemblies) {
    m_cRef = 0;
    m_pRuntimeHost = pRuntimeHost;
    m_pRuntimeHost->AddRef();
@@ -26,9 +27,10 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost) {
    gcManager = new SHGCManager();
    threadpoolManager = new SHThreadpoolManager();
    iocpManager = new SHIoCompletionManager();
+   assemblyManager = new SHAssemblyManager(hostAssemblies);
 
 
-   if (!taskManager || !syncManager ||
+   if (!taskManager || !syncManager || !assemblyManager ||
       !memoryManager || !gcManager || !threadpoolManager || !iocpManager) {
       Logger::Critical("Unable to allocate Host Managers");
    }
@@ -39,6 +41,7 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost) {
    gcManager->AddRef();
    threadpoolManager->AddRef();
    iocpManager->AddRef();
+   assemblyManager->AddRef();
 }
 
 DHHostControl::~DHHostControl() {
@@ -50,6 +53,7 @@ DHHostControl::~DHHostControl() {
    gcManager->Release();
    threadpoolManager->Release();
    iocpManager->Release();
+   assemblyManager->Release();
 }
 
 STDMETHODIMP_(VOID) DHHostControl::ShuttingDown() {
@@ -94,6 +98,8 @@ STDMETHODIMP DHHostControl::GetHostManager(const IID &riid, void **ppvHostManage
       iocpManager->QueryInterface(IID_IHostIoCompletionManager, ppvHostManager);
    else if (riid == IID_IHostThreadpoolManager)
       threadpoolManager->QueryInterface(IID_IHostThreadpoolManager, ppvHostManager);
+   else if (riid == IID_IHostAssemblyManager)
+      assemblyManager->QueryInterface(IID_IHostAssemblyManager, ppvHostManager);
    else
       ppvHostManager = NULL;
 

@@ -77,6 +77,11 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="Assembly\AssemblyInfo.cpp" />
+    <ClCompile Include="Assembly\AssemblyMgr.cpp" />
+    <ClCompile Include="Assembly\AssemblyStore.cpp" />
+    <ClCompile Include="Assembly\FileStream.cpp" />
+    <ClCompile Include="Common.cpp" />
     <ClCompile Include="Threading\AutoEvent.cpp" />
     <ClCompile Include="HostContext.cpp" />
     <ClCompile Include="Threading\Crst.cpp" />
@@ -95,6 +100,10 @@
     <ClCompile Include="Threading\ThreadpoolMgr.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="Assembly\AssemblyInfo.h" />
+    <ClInclude Include="Assembly\AssemblyMgr.h" />
+    <ClInclude Include="Assembly\AssemblyStore.h" />
+    <ClInclude Include="Assembly\FileStream.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="HostContext.h" />
     <ClInclude Include="Threading\Crst.h" />

@@ -22,5 +22,13 @@
 using namespace mscorlib;
 //
 
+#include <string>
+
+std::wstring toWstring(const std::string& s);
+std::string toString(const std::wstring& s);
+bstr_t toBSTR(const std::string& s);
+
+std::wstring CurrentDirectory();
+
 
 #endif

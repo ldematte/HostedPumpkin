@@ -7,7 +7,7 @@
 #include <time.h>
 
 static const size_t TIME_BUFFER_SIZE = 80;
-static const size_t LINE_BUFFER_SIZE = 160;
+static const size_t LINE_BUFFER_SIZE = 320;
 
 LogLevel::Level Logger::currentLevel = LogLevel::Debug;
 
@@ -22,8 +22,25 @@ static void now(char* buffer) {
    strftime(buffer, TIME_BUFFER_SIZE, "%d-%m-%Y %I:%M:%S", &timeinfo);
 }
 
+static void now(wchar_t* buffer) {
+   time_t rawtime;
+   struct tm timeinfo;
+
+   time(&rawtime);
+   localtime_s(&timeinfo, &rawtime);
+
+   
+   wcsftime(buffer, TIME_BUFFER_SIZE, L"%d-%m-%Y %I:%M:%S", &timeinfo);
+}
+
 static void log(const char* level, const char* message) {
    char time_buffer[TIME_BUFFER_SIZE];
+   now(time_buffer);
+   fprintf(stderr, "%s - [%s] %s\n", time_buffer, level, message);
+}
+
+static void log(const wchar_t* level, const wchar_t* message) {
+   wchar_t time_buffer[TIME_BUFFER_SIZE];
    now(time_buffer);
    fprintf(stderr, "%s - [%s] %s\n", time_buffer, level, message);
 }
@@ -54,6 +71,20 @@ void Logger::Debug(const char* format, ...) {
    va_end(ap);
 
    log("DEBUG", line_buffer);
+}
+
+void Logger::Debug(const wchar_t* format, ...) {
+   if (currentLevel > LogLevel::Debug)
+      return;
+
+   wchar_t line_buffer[LINE_BUFFER_SIZE];
+
+   va_list ap;
+   va_start(ap, format);
+   vswprintf_s(line_buffer, LINE_BUFFER_SIZE, format, ap);
+   va_end(ap);
+
+   log(L"DEBUG", line_buffer);
 }
 
 void Logger::Error(const char* format, ...) {

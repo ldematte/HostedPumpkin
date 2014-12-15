@@ -63,6 +63,21 @@
     <ClCompile Include="HostContext.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="Assembly\AssemblyMgr.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Assembly\AssemblyStore.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Assembly\AssemblyInfo.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Common.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Assembly\FileStream.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="HostCtrl.h">
@@ -114,6 +129,18 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="HostContext.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assembly\AssemblyMgr.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assembly\AssemblyStore.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assembly\AssemblyInfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assembly\FileStream.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

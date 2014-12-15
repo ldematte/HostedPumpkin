@@ -16,23 +16,7 @@ using namespace TCLAP;
 using namespace std;
 
 
-bstr_t toBSTR(const std::string& s) {
-   return bstr_t(s.c_str());
-}
 
-bstr_t CurrentDirectory() {
-   wchar_t buffer[MAX_PATH + 1];
-   ::GetCurrentDirectoryW(sizeof(buffer), buffer);
-   return bstr_t(buffer);
-}
-
-wstring toWstring(const std::string& s) {
-   std::wstring ws(s.size(), L' ');
-   size_t charsConverted = 0;
-   mbstowcs_s(&charsConverted, &ws[0], ws.capacity(), s.c_str(), s.size());
-   ws.resize(charsConverted);
-   return ws;
-}
 
 
 int main(int argc, char* argv [])
@@ -42,6 +26,7 @@ int main(int argc, char* argv [])
    string assemblyFileName;
    string typeName;
    string methodName;
+   bool useSandbox = false;
 
    CmdLine cmd("Simple CLR Host", ' ', "1.0");
    try {     
@@ -57,6 +42,9 @@ int main(int argc, char* argv [])
 
       ValueArg<string> methodNameArg("m", "method", "The method to invoke", false, "", "string");
       cmd.add(methodNameArg);
+
+      SwitchArg useSandboxArg("s", "sandbox", "Run in a sandbox AppDomain", false);
+      cmd.add(useSandboxArg);
       
       cmd.parse(argc, argv);
 
@@ -75,6 +63,7 @@ int main(int argc, char* argv [])
       assemblyFileName = assemblyFileNameArg.getValue();
       typeName = typeNameArg.getValue();
       methodName = methodNameArg.getValue();
+      useSandbox = useSandboxArg.getValue();
    }
    catch (ArgException &e) {
       cerr << "Error: " << e.error() << " for arg " << e.argId() << endl;      
@@ -150,11 +139,17 @@ int main(int argc, char* argv [])
    clr->GetCLRControl(&clrControl);
 
    // Associate our domain manager
-   clrControl->SetAppDomainManagerType(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad",
-      L"SimpleHostRuntime.SimpleHostAppDomainManager");
+   std::list<AssemblyInfo> hostAssemblies;
+   std::wstring currentDir = CurrentDirectory();
+   AssemblyInfo appDomainManager(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad", currentDir + L"\\SimpleHostRuntime.dll", L"");
+   hostAssemblies.push_back(appDomainManager);
+
+   clrControl->SetAppDomainManagerType(appDomainManager.FullName.c_str(), L"SimpleHostRuntime.SimpleHostAppDomainManager");
+
+
 
    // Construct our host control object.
-   DHHostControl* hostControl = new DHHostControl(clr);
+   DHHostControl* hostControl = new DHHostControl(clr, hostAssemblies);
    clr->SetHostControl(hostControl);
 
    // Start the CLR.
@@ -188,7 +183,12 @@ int main(int argc, char* argv [])
    if (methodName != "") {
       bstr_t type = toBSTR(typeName);
       bstr_t method = toBSTR(methodName);
-      hrExecute = domainManager->raw_Run_2(assemblyName, type, method, &appDomainId);
+      if (useSandbox) {
+         hrExecute = domainManager->raw_RunSandboxed(assemblyName, type, method, &appDomainId);
+      }
+      else {
+         hrExecute = domainManager->raw_Run_2(assemblyName, type, method, &appDomainId);
+      }
    }
    else {
       hrExecute = domainManager->raw_Run(assemblyName, &appDomainId);

@@ -4,6 +4,9 @@
 
 #include "Common.h"
 #include "HostContext.h"
+#include "Assembly/AssemblyInfo.h"
+
+#include <list>
 
 class SHTaskManager;
 class SHSyncManager;
@@ -11,6 +14,7 @@ class SHMemoryManager;
 class SHThreadpoolManager;
 class SHGCManager;
 class SHIoCompletionManager;
+class SHAssemblyManager;
 
 class DHHostControl : public IHostControl {
 private:
@@ -24,11 +28,12 @@ private:
    SHThreadpoolManager* threadpoolManager;
    SHGCManager* gcManager;
    SHIoCompletionManager* iocpManager;
+   SHAssemblyManager* assemblyManager;
 
    HostContext hostContext;
 
 public:
-   DHHostControl(ICLRRuntimeHost *pRuntimeHost);
+   DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<AssemblyInfo>& hostAssemblies);
    ~DHHostControl();
 
    ICLRControl* GetCLRControl() { return m_pRuntimeControl; };
