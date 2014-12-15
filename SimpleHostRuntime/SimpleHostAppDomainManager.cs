@@ -39,7 +39,7 @@ namespace SimpleHostRuntime {
    [ComVisible(true), Guid("3D4364E5-790F-4F34-A655-EFB05A40BA07"),
         ClassInterface(ClassInterfaceType.None),
         ComSourceInterfaces(typeof(ISimpleHostDomainManager))]
-   //[SecuritySafeCritical]
+   [SecuritySafeCritical]
    public class SimpleHostAppDomainManager : System.AppDomainManager, ISimpleHostDomainManager {
 
       public const int ExecutionTimeout = 2000;
@@ -123,36 +123,36 @@ namespace SimpleHostRuntime {
          return exitCode;
       }
 
-      private int RunInDomain(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName) {
+      private int RunInDomain(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName, bool runningInSandbox) {
          var manager = (SimpleHostAppDomainManager)ad.DomainManager;
-         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName);
+         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName, runningInSandbox);
          return ad.Id;
       }
 
-      private int RunInDomainAsync(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName) {
+      private int RunInDomainAsync(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName, bool runningInSandbox) {
          var manager = (SimpleHostAppDomainManager)ad.DomainManager;
-         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName);
+         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName, runningInSandbox);
          return ad.Id;
       }
 
       public int Run(string assemblyFileName, string mainTypeName, string methodName) {
          var ad = AppDomain.CreateDomain(assemblyFileName, null, null);
-         return RunInDomain(ad, assemblyFileName, mainTypeName, methodName);
+         return RunInDomain(ad, assemblyFileName, mainTypeName, methodName, false);
       }
 
       public int RunAsync(string assemblyFileName, string mainTypeName, string methodName) {
          var ad = AppDomain.CreateDomain(assemblyFileName, null, null);
-         return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName);
+         return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName, false);
       }
 
       public int RunSandboxed(string assemblyFileName, string mainTypeName, string methodName) {
          var ad = CreateSandbox("Host Sandbox Domain");
-         return RunInDomain(ad, assemblyFileName, mainTypeName, methodName);
+         return RunInDomain(ad, assemblyFileName, mainTypeName, methodName, true);
       }
 
       public int RunSandboxedAsync(string assemblyFileName, string mainTypeName, string methodName) {
          var ad = CreateSandbox("Host Sandbox Domain");
-         return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName);
+         return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName, true);
       }
 
       static Assembly domain_AssemblyResolve(object sender, ResolveEventArgs args) {
@@ -177,8 +177,10 @@ namespace SimpleHostRuntime {
       private void domain_AssemblyLoad(object sender, AssemblyLoadEventArgs args) {
          System.Diagnostics.Debug.WriteLine("Loaded: " + args.LoadedAssembly.FullName);
       }
-      
-      private void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName) {
+
+      [SecuritySafeCritical]
+      private void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName,
+                               bool runningInSandbox) {
 
          try {
             // Use this "trick" to go through the standard loader path.
@@ -204,27 +206,31 @@ namespace SimpleHostRuntime {
                      status = Status.Error;
                      return;
                   }
-                  var target = type.GetMethod(methodName, BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static);
+
+                  // To allow code to invoke any nonpublic member: Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.MemberAccess flag
+                  // To allow code to invoke any nonpublic member, as long as the grant set of the assembly that contains the invoked member is 
+                  // the same as, or a subset of, the grant set of the assembly that contains the invoking code: 
+                  // Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.RestrictedMemberAccess flag.
+                  // See http://msdn.microsoft.com/en-us/library/stfy7tfc%28v=vs.110%29.aspx
+                  var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+                  if (runningInSandbox)
+                     bindingFlags = BindingFlags.Public | BindingFlags.Static;
+
+                  var target = type.GetMethod(methodName, bindingFlags);
                   if (target == null) {
                      status = Status.Error;
                      return;
                   }
 
+                  //target.S Attributes = target.Attributes ^ MethodAttributes.Private;
+
                   //Now invoke the method.
                   target.Invoke(null, null);
                   status = Status.Done;
                }
-               catch (MethodAccessException ex) {
-                  // When we print informations from a SecurityException extra information can be printed if we are 
-                  //calling it with a full-trust stack.
-                  (new PermissionSet(PermissionState.Unrestricted)).Assert();
-                  System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
-                  System.Diagnostics.Debug.WriteLine("If you are running in a sandbox, try to make the executing assembly System.Security.SecurityTransparent");
-                  CodeAccessPermission.RevertAssert();
-                  exception = ex;
-                  status = Status.Error;
-               }
                catch (TargetInvocationException ex) {
+                  // When we print informations from a SecurityException extra information can be printed if we are 
+                  //calling it with a full-trust stack.                  
                   (new PermissionSet(PermissionState.Unrestricted)).Assert();
                   System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
                   CodeAccessPermission.RevertAssert();
