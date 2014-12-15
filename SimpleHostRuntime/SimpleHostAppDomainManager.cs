@@ -39,6 +39,7 @@ namespace SimpleHostRuntime {
    [ComVisible(true), Guid("3D4364E5-790F-4F34-A655-EFB05A40BA07"),
         ClassInterface(ClassInterfaceType.None),
         ComSourceInterfaces(typeof(ISimpleHostDomainManager))]
+   //[SecuritySafeCritical]
    public class SimpleHostAppDomainManager : System.AppDomainManager, ISimpleHostDomainManager {
 
       public const int ExecutionTimeout = 2000;
@@ -182,9 +183,14 @@ namespace SimpleHostRuntime {
          try {
             // Use this "trick" to go through the standard loader path.
             // This MAY be something we want, or something to avoid
+
+            // When loading the assembly, we need at least FileIOPermission. 
+            // Calling it with a full-trust stack. TODO: only what is needed
+            (new PermissionSet(PermissionState.Unrestricted)).Assert();
             AssemblyName an = AssemblyName.GetAssemblyName(assemblyFileName);
             var clientAssembly = appDomain.Load(an);
-
+            CodeAccessPermission.RevertAssert();
+            
             status = Status.Running;
             // Here we already are on the new domain
             // TODO: implement our own thread-pool here?
@@ -208,18 +214,28 @@ namespace SimpleHostRuntime {
                   target.Invoke(null, null);
                   status = Status.Done;
                }
-               catch (TargetInvocationException ex) {
+               catch (MethodAccessException ex) {
                   // When we print informations from a SecurityException extra information can be printed if we are 
                   //calling it with a full-trust stack.
                   (new PermissionSet(PermissionState.Unrestricted)).Assert();
                   System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
+                  System.Diagnostics.Debug.WriteLine("If you are running in a sandbox, try to make the executing assembly System.Security.SecurityTransparent");
                   CodeAccessPermission.RevertAssert();
+                  exception = ex;
+                  status = Status.Error;
+               }
+               catch (TargetInvocationException ex) {
+                  (new PermissionSet(PermissionState.Unrestricted)).Assert();
+                  System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
+                  CodeAccessPermission.RevertAssert();
+                  exception = ex;
                   status = Status.Error;
                }
                catch (Exception ex) {
                   (new PermissionSet(PermissionState.Unrestricted)).Assert();
                   System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.ToString());
                   CodeAccessPermission.RevertAssert();
+                  exception = ex;
                   status = Status.Error;
                }
             });
@@ -238,6 +254,7 @@ namespace SimpleHostRuntime {
             (new PermissionSet(PermissionState.Unrestricted)).Assert();
             System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.ToString());
             CodeAccessPermission.RevertAssert();
+            exception = ex;
             status = Status.Error;
          }
       }      

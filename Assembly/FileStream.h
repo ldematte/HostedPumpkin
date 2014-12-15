@@ -23,7 +23,7 @@ private:
 
 public:
    SHFileStream(LPCWSTR fileName);
-   ~SHFileStream();
+   virtual ~SHFileStream();
 
    // Additional functions
    STDMETHODIMP OpenRead();

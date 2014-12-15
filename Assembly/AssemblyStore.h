@@ -13,6 +13,8 @@ private:
    volatile LONG m_cRef;
    std::list<AssemblyInfo>* hostAssemblies;
 
+   bool SameAssembly(const std::wstring& availableName, LPCWSTR requiredName);
+
 public:
    SHAssemblyStore(std::list<AssemblyInfo>*);
    ~SHAssemblyStore();

@@ -5,12 +5,12 @@ using System.Text;
 using System.Threading.Tasks;
 
 namespace TestApplication {
-   class Program {
+   public class Program {
       static void Main(string[] args) {
          Console.WriteLine("Hello world!");
       }
 
-      static void SomeOtherMethod() {
+      public static void SomeOtherMethod() {
          Console.WriteLine("Hello world, again!");
       }
    }

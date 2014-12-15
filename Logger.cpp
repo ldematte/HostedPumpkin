@@ -41,8 +41,8 @@ static void log(const char* level, const char* message) {
 
 static void log(const wchar_t* level, const wchar_t* message) {
    wchar_t time_buffer[TIME_BUFFER_SIZE];
-   now(time_buffer);
-   fprintf(stderr, "%s - [%s] %s\n", time_buffer, level, message);
+   now(time_buffer);   
+   fwprintf(stderr, L"%s - [%s] %s\n", time_buffer, level, message);
 }
 
 void Logger::Info(const char* format, ...) {
@@ -98,6 +98,19 @@ void Logger::Error(const char* format, ...) {
    va_end(ap);
 
    log("ERROR", line_buffer);
+}
+
+void Logger::Error(const wchar_t* format, ...) {
+   if (currentLevel > LogLevel::Error)
+      return;
+   wchar_t line_buffer[LINE_BUFFER_SIZE];
+
+   va_list ap;
+   va_start(ap, format);
+   vswprintf_s(line_buffer, LINE_BUFFER_SIZE, format, ap);
+   va_end(ap);
+
+   log(L"ERROR", line_buffer);
 }
 
 void Logger::Critical(const char* format, ...) {

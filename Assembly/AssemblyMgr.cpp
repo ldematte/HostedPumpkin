@@ -44,14 +44,14 @@ STDMETHODIMP SHAssemblyManager::QueryInterface(const IID &riid, void **ppvObject
 // IHostGCManager functions
 
 STDMETHODIMP SHAssemblyManager::GetNonHostStoreAssemblies(/* [out] */ ICLRAssemblyReferenceList **ppReferenceList) {
-   Logger::Debug("In AssemblyManager::GetNonHostStoreAssemblies");
+   Logger::Info("In AssemblyManager::GetNonHostStoreAssemblies");
    // Tell the CLR to just try to load everything by itself from the GAC, as a first step...
    *ppReferenceList = NULL;
    return S_OK;
 }
 
 STDMETHODIMP SHAssemblyManager::GetAssemblyStore(/* [out] */ IHostAssemblyStore **ppAssemblyStore) {
-   Logger::Debug("In AssemblyManager::GetAssemblyStore");
+   Logger::Info("In AssemblyManager::GetAssemblyStore");
 
    // ... if not, try to load it using our store
 

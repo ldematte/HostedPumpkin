@@ -7,7 +7,9 @@ SHFileStream::SHFileStream(LPCWSTR fileName) {
    m_hFile = INVALID_HANDLE_VALUE;
 }
 
-SHFileStream::~SHFileStream() {}
+SHFileStream::~SHFileStream() {
+   Close();
+}
 
 // IUnknown functions
 

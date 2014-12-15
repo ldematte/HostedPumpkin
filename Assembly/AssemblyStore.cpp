@@ -26,9 +26,13 @@ HRESULT CreateStreamFromFile(LPCWSTR fileName, IStream **ppStream) {
    return hr;
 }
 
-//
+bool SHAssemblyStore::SameAssembly(const std::wstring& availableName, LPCWSTR requiredName) {
+   size_t requiredNameLen = wcslen(requiredName);
+   return requiredNameLen == availableName.size() &&
+      (_wcsnicmp(availableName.c_str(), requiredName, availableName.size()) == 0);
+}
+
 // IHostAssemblyStore
-//
 HRESULT STDMETHODCALLTYPE SHAssemblyStore::ProvideAssembly(
    AssemblyBindInfo *pBindInfo,
    UINT64           *pAssemblyId,
@@ -36,25 +40,28 @@ HRESULT STDMETHODCALLTYPE SHAssemblyStore::ProvideAssembly(
    IStream          **ppStmAssemblyImage,
    IStream          **ppStmPDB) {
    
-   Logger::Debug("ProvideAssembly called for binding identity '%s' in domain %d ", toString(pBindInfo->lpPostPolicyIdentity).c_str(), pBindInfo->dwAppDomainId);
+   Logger::Debug(L"ProvideAssembly called for binding identity '%s' in domain %d ", pBindInfo->lpPostPolicyIdentity, pBindInfo->dwAppDomainId);
+
+   // Change the assembly probing mechanism. See
+   // http://blogs.msdn.com/b/junfeng/archive/2006/03/27/561775.aspx
 
    // Check to see if Administrator policy was applied.  If so, print an error
    // to the command line and return "file not found".  This will cause the 
-   // execution to stop with an exception.
+   // execution to continue searching along the normal path
    if (pBindInfo->ePolicyLevel == ePolicyLevelAdmin) {
-      Logger::Debug("Administrator Version Policy is present that redirects: %s to %s. Stopping search", pBindInfo->lpReferencedIdentity, pBindInfo->lpPostPolicyIdentity);
+      Logger::Debug(L"Administrator Version Policy is present that redirects: %s to %s. Stopping search", pBindInfo->lpReferencedIdentity, pBindInfo->lpPostPolicyIdentity);
       return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
    }
-
 
 
    // We don't use pContext for any host-specific data - set it to 0. 
    *pContext = 0;
 
-   UINT64 id = 0; 
+   // WARNING WARNING! This cannot be "0" or the CLR will freak out (and will start to search for types in the wrong assemblies)
+   UINT64 id = 10000; 
    std::list<AssemblyInfo>::iterator it;
    for (it = hostAssemblies->begin(); it != hostAssemblies->end(); ++it, ++id) {
-      if (it->FullName == std::wstring(pBindInfo->lpPostPolicyIdentity)) {
+      if (SameAssembly(it->FullName, pBindInfo->lpPostPolicyIdentity)) {
          *pAssemblyId = id;
 
          if (it->AssemblyLoadPath.empty()) {
@@ -70,11 +77,12 @@ HRESULT STDMETHODCALLTYPE SHAssemblyStore::ProvideAssembly(
             hr = CreateStreamFromFile(it->AssemblyDebugInfoPath.c_str(), ppStmPDB);
             if (FAILED(hr)) {
                // Just skip debug info, if not found
-               Logger::Error("Cannot load debug info from %s", toString(it->AssemblyDebugInfoPath).c_str());
+               Logger::Error(L"Cannot load debug info from %s", it->AssemblyDebugInfoPath);
                *ppStmPDB = NULL;
             }         
          }
 
+         Logger::Debug("Assembly provided by HOST storage");
          return S_OK;
       }      
    }
@@ -92,7 +100,7 @@ HRESULT STDMETHODCALLTYPE SHAssemblyStore::ProvideModule(
    IStream** /*ppStmModuleImage*/,
    IStream** /*ppStmPDB*/) {
 
-   Logger::Debug("ProvideModule called for binding identity '%s' in domain %d", toString(pBindInfo->lpAssemblyIdentity).c_str(), pBindInfo->dwAppDomainId);
+   Logger::Debug(L"ProvideModule called for binding identity '%s' in domain %d", pBindInfo->lpAssemblyIdentity, pBindInfo->dwAppDomainId);
 
    // Let the CLR load every module
    return HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND);
