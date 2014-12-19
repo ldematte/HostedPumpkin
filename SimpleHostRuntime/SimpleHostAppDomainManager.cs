@@ -178,7 +178,11 @@ namespace SimpleHostRuntime {
          System.Diagnostics.Debug.WriteLine("Loaded: " + args.LoadedAssembly.FullName);
       }
 
-      [SecuritySafeCritical]
+      public override HostSecurityManager HostSecurityManager {
+         get { return new SimpleHostSecurityManager(); }
+      }
+
+      //[SecuritySafeCritical]
       private void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName,
                                bool runningInSandbox) {
 

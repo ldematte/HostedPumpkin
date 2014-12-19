@@ -138,6 +138,39 @@ int main(int argc, char* argv [])
    ICLRControl* clrControl = NULL;
    clr->GetCLRControl(&clrControl);
 
+   if (useSandbox) {
+      // Ask the CLR for its implementation of ICLRHostProtectionManager. 
+      ICLRHostProtectionManager* clrHostProtectionManager = NULL; 
+      hr = clrControl->GetCLRManager(IID_ICLRHostProtectionManager, (void **) &clrHostProtectionManager); 
+      if (FAILED(hr)) {
+         runtimeInfo->Release();
+         metaHost->Release();
+         Logger::Critical("ICLRControl::GetCLRManager failed w / hr 0x % 08lx\n", hr);
+         return -1;
+      }
+
+      // Block all host protection categories.
+      // TODO: only a relevant subset?
+      // TODO: how does this in
+      hr = clrHostProtectionManager->SetProtectedCategories ( (EApiCategories)( 
+         eSelfAffectingProcessMgmt | 
+         eSelfAffectingThreading  |
+         eSynchronization  |
+         eSharedState  |
+         eExternalProcessMgmt  |
+         eExternalThreading  |
+         eSelfAffectingProcessMgmt  |
+         eSelfAffectingThreading  |
+         eSecurityInfrastructure  |
+         eMayLeakOnAbort  |
+         eUI));
+
+      if (FAILED(hr)) {
+         Logger::Critical("ICLRHostProtectionManager::SetProtectedCategories failed w / hr 0x % 08lx\n", hr);         
+      }
+      clrHostProtectionManager->Release();
+   }
+
    // Associate our domain manager
    std::list<AssemblyInfo> hostAssemblies;
    std::wstring currentDir = CurrentDirectory();
