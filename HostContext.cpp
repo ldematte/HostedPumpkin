@@ -11,6 +11,47 @@
 #include <mscoree.h>
 #include <corerror.h>
 
+
+HostContext::HostContext() {
+   defaultDomainManager = NULL;
+   domainMapCrst = new CRITICAL_SECTION;
+
+   if (!domainMapCrst)
+      Logger::Critical("Failed to allocate critical sections");
+
+   InitializeCriticalSection(domainMapCrst);
+}
+
+HostContext::~HostContext() {
+   if (domainMapCrst) DeleteCriticalSection(domainMapCrst);
+}
+
+void HostContext::OnDomainUnloaded(DWORD domainId) {
+
+   CrstLock(this->domainMapCrst);
+   auto domainIt = appDomains.find(domainId);
+   if (domainIt != appDomains.end()) {
+      appDomains.erase(domainIt);
+   }
+
+}
+
+void HostContext::OnDomainCreated(DWORD dwAppDomainID, ISimpleHostDomainManager* domainManager) {
+
+   CrstLock(this->domainMapCrst);
+   appDomains.insert(std::make_pair(dwAppDomainID, domainManager));
+   if (defaultDomainManager == NULL)
+      defaultDomainManager = domainManager;
+   
+}
+
+ISimpleHostDomainManager* HostContext::GetDomainManagerForDefaultDomain() {
+   if (defaultDomainManager)
+      defaultDomainManager->AddRef();
+
+   return defaultDomainManager;
+}
+
 HRESULT HostContext::Sleep(DWORD dwMilliseconds, DWORD option) {
 
    BOOL alertable = option & WAIT_ALERTABLE;

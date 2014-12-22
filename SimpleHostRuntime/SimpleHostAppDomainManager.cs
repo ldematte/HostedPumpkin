@@ -178,9 +178,13 @@ namespace SimpleHostRuntime {
          System.Diagnostics.Debug.WriteLine("Loaded: " + args.LoadedAssembly.FullName);
       }
 
-      public override HostSecurityManager HostSecurityManager {
-         get { return new SimpleHostSecurityManager(); }
-      }
+      // This kind of customization (provide a custom HostSecurityManager, with custom DomainPolicy etc.)
+      // is obsolete in .NET4. Setting the PermissionSet on the AppDomain (as we do here) is the right thing to do
+      // See http://msdn.microsoft.com/en-us/library/ee191568(VS.100).aspx
+      // and http://msdn.microsoft.com/en-us/library/bb763046(v=vs.100).aspx
+      //public override HostSecurityManager HostSecurityManager {
+      //   get { return new SimpleHostSecurityManager(); }
+      //}
 
       //[SecuritySafeCritical]
       private void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName,

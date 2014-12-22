@@ -23,6 +23,7 @@ public:
    static void Error(const wchar_t* format, ...);
    static void Critical(const char* format, ...);
    static void Info(const char* format, ...);
+   static void Info(const wchar_t* format, ...);
    static void Debug(const char* format, ...);
    static void Debug(const wchar_t* format, ...);
 

@@ -9,6 +9,7 @@
 #include "Threading\ThreadpoolMgr.h"
 #include "Threading\IoCompletionMgr.h"
 #include "Assembly\AssemblyMgr.h"
+#include "EventManager.h"
 
 #include "Logger.h"
 
@@ -28,6 +29,15 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
    threadpoolManager = new SHThreadpoolManager();
    iocpManager = new SHIoCompletionManager();
    assemblyManager = new SHAssemblyManager(hostAssemblies);
+   eventManager = new SHEventManager(&hostContext);
+
+   // Register our Event Manager for the events we are interested in
+   ICLROnEventManager* clrEventManager;
+   if (SUCCEEDED(m_pRuntimeControl->GetCLRManager(IID_ICLROnEventManager, (void**) &clrEventManager))) {
+      clrEventManager->RegisterActionOnEvent(Event_DomainUnload, eventManager);
+      clrEventManager->RegisterActionOnEvent(Event_ClrDisabled, eventManager);
+      clrEventManager->RegisterActionOnEvent(Event_MDAFired, eventManager);
+   }
 
 
    if (!taskManager || !syncManager || !assemblyManager ||
@@ -122,22 +132,15 @@ STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *p
 
    HRESULT hr = pUnkAppDomainManager->QueryInterface(__uuidof(ISimpleHostDomainManager), (PVOID*) &domainManager);
 
-   if (SUCCEEDED(hr)) {
-      hostContext.appDomains.insert(std::make_pair(dwAppDomainID, domainManager));
-      if (hostContext.defaultDomainManager == NULL)
-         hostContext.defaultDomainManager = domainManager;
-   }
-   else {
-      hostContext.appDomains[dwAppDomainID] = NULL;
+   if (FAILED(hr)) {
+      domainManager = NULL;
    }
 
+   hostContext.OnDomainCreated(dwAppDomainID, domainManager);
    return hr;
 }
 
 ISimpleHostDomainManager* DHHostControl::GetDomainManagerForDefaultDomain() {
-   if (hostContext.defaultDomainManager)
-      hostContext.defaultDomainManager->AddRef();
-
-   return hostContext.defaultDomainManager;
+   return hostContext.GetDomainManagerForDefaultDomain();   
 }
 

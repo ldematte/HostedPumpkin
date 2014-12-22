@@ -11,13 +11,20 @@
 //using namespace SimpleHostRuntime;
 
 class HostContext {
-public:
-
-   // TODO: make private
+private:
+   LPCRITICAL_SECTION domainMapCrst;
    std::map<DWORD, ISimpleHostDomainManager*> appDomains;
    ISimpleHostDomainManager* defaultDomainManager;
 
-   HostContext() : defaultDomainManager(NULL) { }
+
+public:  
+
+   HostContext();
+   virtual ~HostContext();
+
+   void OnDomainUnloaded(DWORD domainId);
+   void OnDomainCreated(DWORD domainId, ISimpleHostDomainManager* domainManager);
+   ISimpleHostDomainManager* GetDomainManagerForDefaultDomain();
   
    static HRESULT HostWait(HANDLE hWait, DWORD dwMilliseconds, DWORD dwOption);
    static HRESULT Sleep(DWORD dwMilliseconds, DWORD dwOption);

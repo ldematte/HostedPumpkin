@@ -82,6 +82,7 @@
     <ClCompile Include="Assembly\AssemblyStore.cpp" />
     <ClCompile Include="Assembly\FileStream.cpp" />
     <ClCompile Include="Common.cpp" />
+    <ClCompile Include="EventManager.cpp" />
     <ClCompile Include="Threading\AutoEvent.cpp" />
     <ClCompile Include="HostContext.cpp" />
     <ClCompile Include="Threading\Crst.cpp" />
@@ -105,6 +106,7 @@
     <ClInclude Include="Assembly\AssemblyStore.h" />
     <ClInclude Include="Assembly\FileStream.h" />
     <ClInclude Include="Common.h" />
+    <ClInclude Include="EventManager.h" />
     <ClInclude Include="HostContext.h" />
     <ClInclude Include="Threading\Crst.h" />
     <ClInclude Include="CrstLock.h" />

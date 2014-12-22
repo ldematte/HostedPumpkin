@@ -15,6 +15,7 @@ class SHThreadpoolManager;
 class SHGCManager;
 class SHIoCompletionManager;
 class SHAssemblyManager;
+class SHEventManager;
 
 class DHHostControl : public IHostControl {
 private:
@@ -29,6 +30,7 @@ private:
    SHGCManager* gcManager;
    SHIoCompletionManager* iocpManager;
    SHAssemblyManager* assemblyManager;
+   SHEventManager* eventManager;
 
    HostContext hostContext;
 

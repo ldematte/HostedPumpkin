@@ -123,6 +123,10 @@ int main(int argc, char* argv [])
 
    //ICorRuntimeHost *corRuntimeHost = NULL;
    //hr = runtimeInfo->GetInterface(CLSID_CorRuntimeHost, IID_PPV_ARGS(&corRuntimeHost));
+   //_AppDomain* appDomain;
+   //IUnknown* appDomainUnk;
+   //corRuntimeHost->GetDefaultDomain(&appDomainUnk);
+   //appDomainUnk->QueryInterface(&appDomain);
 
    ICLRRuntimeHost* clr = NULL;
    hr = runtimeInfo->GetInterface(CLSID_CLRRuntimeHost, IID_PPV_ARGS(&clr));
@@ -151,7 +155,7 @@ int main(int argc, char* argv [])
 
       // Block all host protection categories.
       // TODO: only a relevant subset?
-      // TODO: how does this in
+      // TODO: how does this interact with the AppDomain PermissionSet?
       hr = clrHostProtectionManager->SetProtectedCategories ( (EApiCategories)( 
          eSelfAffectingProcessMgmt | 
          eSelfAffectingThreading  |

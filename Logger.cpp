@@ -59,6 +59,20 @@ void Logger::Info(const char* format, ...) {
    log("INFO", line_buffer);
 }
 
+void Logger::Info(const wchar_t* format, ...) {
+   if (currentLevel > LogLevel::Info)
+      return;
+
+   wchar_t line_buffer[LINE_BUFFER_SIZE];
+
+   va_list ap;
+   va_start(ap, format);
+   vswprintf_s(line_buffer, LINE_BUFFER_SIZE, format, ap);
+   va_end(ap);
+
+   log(L"INFO", line_buffer);
+}
+
 void Logger::Debug(const char* format, ...) {
    if (currentLevel > LogLevel::Debug)
       return;
