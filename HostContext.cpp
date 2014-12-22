@@ -16,6 +16,8 @@ HostContext::HostContext() {
    defaultDomainManager = NULL;
    domainMapCrst = new CRITICAL_SECTION;
 
+   numZombieDomains = 0;
+
    if (!domainMapCrst)
       Logger::Critical("Failed to allocate critical sections");
 
@@ -26,7 +28,7 @@ HostContext::~HostContext() {
    if (domainMapCrst) DeleteCriticalSection(domainMapCrst);
 }
 
-void HostContext::OnDomainUnloaded(DWORD domainId) {
+void HostContext::OnDomainUnload(DWORD domainId) {
 
    CrstLock(this->domainMapCrst);
    auto domainIt = appDomains.find(domainId);
@@ -36,7 +38,12 @@ void HostContext::OnDomainUnloaded(DWORD domainId) {
 
 }
 
-void HostContext::OnDomainCreated(DWORD dwAppDomainID, ISimpleHostDomainManager* domainManager) {
+void HostContext::OnDomainRudeUnload() {
+   //CrstLock(this->domainMapCrst);
+   InterlockedIncrement(&numZombieDomains);
+}
+
+void HostContext::OnDomainCreate(DWORD dwAppDomainID, ISimpleHostDomainManager* domainManager) {
 
    CrstLock(this->domainMapCrst);
    appDomains.insert(std::make_pair(dwAppDomainID, domainManager));

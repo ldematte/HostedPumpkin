@@ -46,7 +46,7 @@ STDMETHODIMP SHEventManager::OnEvent(EClrEvent event, PVOID data) {
    switch (event) {
    case Event_DomainUnload: 
       Logger::Debug("In EventManager::OnEvent: Event_DomainUnload, %d", data);
-      hostContext->OnDomainUnloaded((DWORD)data);
+      hostContext->OnDomainUnload((DWORD)data);
       break;
 
    case Event_ClrDisabled:

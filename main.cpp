@@ -86,8 +86,14 @@ int main(int argc, char* argv [])
       return -1;
    }
 
+   // OPTIONAL: ask information about a specific runtime based on some policy
+   //ICLRMetaHostPolicy *pMetaHostPolicy = NULL;
+   //hr = CLRCreateInstance(CLSID_CLRMetaHostPolicy, IID_ICLRMetaHostPolicy, (LPVOID*) &pMetaHostPolicy);
+   //pMetaHostPolicy->GerRequestedRuntime()
+
    // Get the ICLRRuntimeInfo corresponding to a particular CLR version. It 
    // supersedes CorBindToRuntimeEx with STARTUP_LOADER_SAFEMODE.
+   // OPTIONAL: ICLRMetaHost::EnumerateInstalledRuntimes 
    hr = metaHost->GetRuntime(toWstring(clrVersion).c_str(), IID_PPV_ARGS(&runtimeInfo));
    if (FAILED(hr)) {
       metaHost->Release();

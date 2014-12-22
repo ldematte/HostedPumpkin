@@ -16,6 +16,10 @@ class SHGCManager;
 class SHIoCompletionManager;
 class SHAssemblyManager;
 class SHEventManager;
+class SHPolicyManager;
+
+#define THREAD_ABORT_TIMEOUT 10
+#define APPDOMAIN_UNLOAD_TIMEOUT 10
 
 class DHHostControl : public IHostControl {
 private:
@@ -31,6 +35,7 @@ private:
    SHIoCompletionManager* iocpManager;
    SHAssemblyManager* assemblyManager;
    SHEventManager* eventManager;
+   SHPolicyManager* policyManager;
 
    HostContext hostContext;
 
@@ -51,6 +56,7 @@ public:
    STDMETHODIMP SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager);
 
    ISimpleHostDomainManager* GetDomainManagerForDefaultDomain();
+   bool SetupEscalationPolicy();
 };
 
 #endif //HOST_CONTROL_H_INCLUDED

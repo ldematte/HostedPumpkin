@@ -10,6 +10,7 @@
 #include "Threading\IoCompletionMgr.h"
 #include "Assembly\AssemblyMgr.h"
 #include "EventManager.h"
+#include "PolicyManager.h"
 
 #include "Logger.h"
 
@@ -30,6 +31,7 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
    iocpManager = new SHIoCompletionManager();
    assemblyManager = new SHAssemblyManager(hostAssemblies);
    eventManager = new SHEventManager(&hostContext);
+   policyManager = new SHPolicyManager(&hostContext);
 
    // Register our Event Manager for the events we are interested in
    ICLROnEventManager* clrEventManager;
@@ -40,8 +42,8 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
    }
 
 
-   if (!taskManager || !syncManager || !assemblyManager ||
-      !memoryManager || !gcManager || !threadpoolManager || !iocpManager) {
+   if (!taskManager || !syncManager || !memoryManager || !gcManager || !threadpoolManager || 
+      !iocpManager || !assemblyManager || !eventManager || !policyManager) {
       Logger::Critical("Unable to allocate Host Managers");
    }
 
@@ -52,6 +54,10 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
    threadpoolManager->AddRef();
    iocpManager->AddRef();
    assemblyManager->AddRef();
+   eventManager->AddRef();
+   policyManager->AddRef();
+
+   SetupEscalationPolicy();
 }
 
 DHHostControl::~DHHostControl() {
@@ -64,13 +70,14 @@ DHHostControl::~DHHostControl() {
    threadpoolManager->Release();
    iocpManager->Release();
    assemblyManager->Release();
+   eventManager->Release();
+   policyManager->Release();
 }
 
 STDMETHODIMP_(VOID) DHHostControl::ShuttingDown() {
 }
 
 // IUnknown functions
-
 STDMETHODIMP_(DWORD) DHHostControl::AddRef() {
    return InterlockedIncrement(&m_cRef);
 }
@@ -83,6 +90,9 @@ STDMETHODIMP_(DWORD) DHHostControl::Release() {
 }
 
 STDMETHODIMP DHHostControl::QueryInterface(const IID &riid, void **ppvObject) {
+   if (ppvObject == NULL)
+      return E_INVALIDARG;
+
    if (riid == IID_IUnknown || riid == IID_IHostControl) {
       *ppvObject = this;
       AddRef();
@@ -110,6 +120,10 @@ STDMETHODIMP DHHostControl::GetHostManager(const IID &riid, void **ppvHostManage
       threadpoolManager->QueryInterface(IID_IHostThreadpoolManager, ppvHostManager);
    else if (riid == IID_IHostAssemblyManager)
       assemblyManager->QueryInterface(IID_IHostAssemblyManager, ppvHostManager);
+   else if (riid == IID_IActionOnCLREvent)
+      eventManager->QueryInterface(IID_IActionOnCLREvent, ppvHostManager);
+   else if (riid == IID_IHostPolicyManager)
+      policyManager->QueryInterface(IID_IHostPolicyManager, ppvHostManager);
    else
       ppvHostManager = NULL;
 
@@ -136,11 +150,105 @@ STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *p
       domainManager = NULL;
    }
 
-   hostContext.OnDomainCreated(dwAppDomainID, domainManager);
+   hostContext.OnDomainCreate(dwAppDomainID, domainManager);
    return hr;
 }
 
 ISimpleHostDomainManager* DHHostControl::GetDomainManagerForDefaultDomain() {
    return hostContext.GetDomainManagerForDefaultDomain();   
+}
+
+bool DHHostControl::SetupEscalationPolicy() {
+   ICLRPolicyManager* clrPolicyManager = NULL;
+
+   if (SUCCEEDED(m_pRuntimeControl->GetCLRManager(IID_ICLRPolicyManager, (void**) clrPolicyManager))) {
+
+      /////////////////////
+      // Action -> Failures
+
+      HRESULT hr;
+
+      // If we are not able to obtain a resource (OutOfMemoryException), unload the
+      // AppDomain
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_NonCriticalResource, eUnloadAppDomain);  //eAbortThread
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+         return false;
+      }
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_CriticalResource, eUnloadAppDomain);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+         return false;
+      }
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_AccessViolation, eUnloadAppDomain);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+         return false;
+      }
+
+      // Same if we get a orphaned lock: we only allow the usage of "AppDomain local" threading
+      // primitives, so if it is orphaned, it is leaked only locally. "Solve" this by unloading
+      // the AppDomain
+      // TODO: disallow OR rename named synchronization promitives!
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_OrphanedLock, eUnloadAppDomain);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+         return false;
+      }
+
+      // On a fatal runtime error, recycle the process
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_FatalRuntime, eExitProcess);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+         return false;
+      }
+
+      // On StackOverflow, the best we can do is a rude AppDomain unload. This will increase our
+      // "zombie" counter but it's better than abruptly tearing down evrerything
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_StackOverflow, eRudeUnloadAppDomain);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+         return false;
+      }
+
+
+      /////////////////////
+      // Timeouts -> Escalation
+
+      hr = clrPolicyManager->SetTimeoutAndAction(OPR_ThreadAbort, THREAD_ABORT_TIMEOUT * 1000, eRudeAbortThread);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetTimeoutAndAction: HRESULT %x", hr);
+         return false;
+      }    
+      hr = clrPolicyManager->SetTimeout(OPR_FinalizerRun, THREAD_ABORT_TIMEOUT/2 * 1000);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetTimeoutAndAction: HRESULT %x", hr);
+         return false;
+      }
+      hr = clrPolicyManager->SetTimeoutAndAction(OPR_AppDomainUnload, APPDOMAIN_UNLOAD_TIMEOUT * 1000, eRudeUnloadAppDomain);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetTimeoutAndAction: HRESULT %x", hr);
+         return false;
+      }
+
+      ////////////////////
+      // Default actions (escalation without timeout)
+
+      hr = clrPolicyManager->SetDefaultAction(OPR_ThreadRudeAbortInCriticalRegion, eUnloadAppDomain);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetDefaultAction: HRESULT %x", hr);
+         return false;
+      }
+
+      // And specify what we should do on unhandled exceptions
+      hr = clrPolicyManager->SetUnhandledExceptionPolicy(eHostDeterminedPolicy);
+      if (FAILED(hr)) {
+         Logger::Critical("Cannot SetUnhandledExceptionPolicy: HRESULT %x", hr);
+         return false;
+      }
+
+      clrPolicyManager->Release();
+   }
+   return true;
 }
 
