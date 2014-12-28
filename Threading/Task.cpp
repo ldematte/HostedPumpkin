@@ -22,6 +22,7 @@ SHTask::SHTask(SHTaskManager *pTaskManager, DWORD nativeThreadId) {
    m_pTaskManager = pTaskManager;
    m_pTaskManager->AddRef();
    m_nativeId = nativeThreadId;
+   // Get a real handle from the "current thread" pseudo-handle
    DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &m_hThread, 0, FALSE, DUPLICATE_SAME_ACCESS);
    m_pCLRTask = NULL;
 }

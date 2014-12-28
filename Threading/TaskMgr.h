@@ -3,6 +3,7 @@
 #define TASK_MANAGER_H_INCLUDED
 
 #include "../Common.h"
+#include "../HostContext.h"
 
 #include <map>
 
@@ -11,6 +12,7 @@ class SHTaskManager : public IHostTaskManager {
 private:
    volatile LONG m_cRef;
    ICLRTaskManager *m_pCLRTaskManager;
+   HostContext* hostContext;
    
    LPCRITICAL_SECTION nativeThreadMapCrst;
    std::map<DWORD, IHostTask*> nativeThreadMap;
@@ -19,7 +21,7 @@ private:
    std::map<DWORD, ICLRTask*> managedThreadMap;
 
 public:
-   SHTaskManager();
+   SHTaskManager(HostContext* hostContext);
    ~SHTaskManager();
 
    // IUnknown functions

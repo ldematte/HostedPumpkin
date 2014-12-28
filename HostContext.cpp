@@ -13,6 +13,8 @@
 
 
 HostContext::HostContext() {
+   m_cRef = 0;
+
    defaultDomainManager = NULL;
    domainMapCrst = new CRITICAL_SECTION;
 
@@ -27,6 +29,47 @@ HostContext::HostContext() {
 HostContext::~HostContext() {
    if (domainMapCrst) DeleteCriticalSection(domainMapCrst);
 }
+
+// IUnknown functions
+STDMETHODIMP_(DWORD) HostContext::AddRef() {
+   return InterlockedIncrement(&m_cRef);
+}
+
+STDMETHODIMP_(DWORD) HostContext::Release() {
+   ULONG cRef = InterlockedDecrement(&m_cRef);
+   if (cRef == 0) {
+      delete this;
+   }
+   return cRef;
+}
+
+STDMETHODIMP HostContext::QueryInterface(const IID &riid, void **ppvObject) {
+   if (riid == IID_IUnknown || riid == IID_IHostContext) {
+      *ppvObject = this;
+      AddRef();
+      return S_OK;
+   }
+
+   *ppvObject = NULL;
+   return E_NOINTERFACE;
+}
+
+// IHostContext functions
+STDMETHODIMP HostContext::raw_GetThreadCount(
+   /*[in]*/ long appDomainId,
+   /*[out,retval]*/ long * pRetVal) {
+   Logger::Debug("In HostContext::GetThreadCount %d", appDomainId);
+   
+   auto appDomainInfo = appDomains.find(appDomainId);
+   if (appDomainInfo == appDomains.end()) {
+      Logger::Error("Cannot find AppDomain %d!", appDomainId);
+      return S_FALSE;
+   }
+   *pRetVal = appDomainInfo->second.threadsInAppDomain;
+   return S_OK;
+}
+
+
 
 void HostContext::OnDomainUnload(DWORD domainId) {
 
@@ -43,10 +86,11 @@ void HostContext::OnDomainRudeUnload() {
    InterlockedIncrement(&numZombieDomains);
 }
 
-void HostContext::OnDomainCreate(DWORD dwAppDomainID, ISimpleHostDomainManager* domainManager) {
+void HostContext::OnDomainCreate(DWORD dwAppDomainID, DWORD dwCurrentThreadId, ISimpleHostDomainManager* domainManager) {
 
    CrstLock(this->domainMapCrst);
-   appDomains.insert(std::make_pair(dwAppDomainID, domainManager));
+   appDomains.insert(std::make_pair(dwAppDomainID, AppDomainInfo(dwCurrentThreadId, domainManager)));
+   threadAppDomain.insert(std::make_pair(dwCurrentThreadId, dwAppDomainID));
    if (defaultDomainManager == NULL)
       defaultDomainManager = domainManager;
    
@@ -57,6 +101,49 @@ ISimpleHostDomainManager* HostContext::GetDomainManagerForDefaultDomain() {
       defaultDomainManager->AddRef();
 
    return defaultDomainManager;
+}
+
+bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
+
+   CrstLock(this->domainMapCrst);
+   auto parentThreadDomain = threadAppDomain.find(dwParentThreadId);
+   if (parentThreadDomain != threadAppDomain.end()) {
+      DWORD appDomainId = parentThreadDomain->second;
+      Logger::Debug("Thread %d added to domain %d", dwThreadId, appDomainId);
+      AppDomainInfo& domainInfo = appDomains.at(appDomainId);
+      ++(domainInfo.threadsInAppDomain);
+      threadAppDomain.insert(std::make_pair(dwThreadId, parentThreadDomain->second));
+      parentChildThread.insert(std::make_pair(dwParentThreadId, dwThreadId));
+
+      return true;
+   }
+
+   return false;
+}
+
+bool HostContext::OnThreadRelease(DWORD dwThreadId) {
+
+   CrstLock(this->domainMapCrst);
+   auto parentThreadDomain = threadAppDomain.find(dwThreadId);
+   if (parentThreadDomain != threadAppDomain.end()) {
+      DWORD appDomainId = parentThreadDomain->second;
+      Logger::Debug("Thread %d removed from domain %d", dwThreadId, appDomainId);
+      AppDomainInfo& domainInfo = appDomains.at(appDomainId);
+      --(domainInfo.threadsInAppDomain);
+      threadAppDomain.erase(dwThreadId);
+      // TODO
+      //parentChildThread.remove(std::make_pair(dwParentThreadId, dwThreadId));
+
+      threadAppDomain.erase(parentThreadDomain);
+      if (domainInfo.mainThreadId == dwThreadId) {
+         Logger::Debug("Thread %d is the domain main thread. Removing association with %d", dwThreadId, appDomainId);
+         defaultDomainManager->OnMainThreadExit(appDomainId, domainInfo.threadsInAppDomain == 0);
+         appDomains.erase(parentThreadDomain->second);
+      }
+      return true;
+   }
+
+   return false;
 }
 
 HRESULT HostContext::Sleep(DWORD dwMilliseconds, DWORD option) {

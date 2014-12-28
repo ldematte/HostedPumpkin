@@ -10,24 +10,49 @@
 
 //using namespace SimpleHostRuntime;
 
-class HostContext {
+#include "AppDomainInfo.h"
+
+class HostContext: public IHostContext {
 private:
+   volatile LONG m_cRef;
+
    LPCRITICAL_SECTION domainMapCrst;
-   std::map<DWORD, ISimpleHostDomainManager*> appDomains;
+   std::map<DWORD, AppDomainInfo> appDomains;
+
+   std::map<DWORD, DWORD> parentChildThread;
+   std::map<DWORD, DWORD> threadAppDomain;
+
 
    volatile unsigned long numZombieDomains;
 
    ISimpleHostDomainManager* defaultDomainManager;
 
-public:  
-
+public:
    HostContext();
    virtual ~HostContext();
 
+   // IUnknown functions
+   STDMETHODIMP_(DWORD) AddRef();
+   STDMETHODIMP_(DWORD) Release();
+   STDMETHODIMP QueryInterface(const IID &riid, void **ppvObject);
+
+   // IHostContext functions
+   virtual STDMETHODIMP raw_GetThreadCount(
+      /*[in]*/ long appDomainId,
+      /*[out,retval]*/ long * pRetVal);
+
    void OnDomainUnload(DWORD domainId);
    void OnDomainRudeUnload();
-   void OnDomainCreate(DWORD domainId, ISimpleHostDomainManager* domainManager);
+   void OnDomainCreate(DWORD domainId, DWORD dwCurrentThreadId, ISimpleHostDomainManager* domainManager);
    ISimpleHostDomainManager* GetDomainManagerForDefaultDomain();
+
+   // Notifies that the managed code "got hold" (created, got from a pool) of a new thread   
+   bool OnThreadAcquire(DWORD dwParentThreadId, DWORD dwNewThreadId);
+   bool OnThreadRelease(DWORD dwThreadId);
+
+   bool OnMemoryAlloc(DWORD dwThreadId, LONG bytes, PVOID address);
+   bool OnMemoryFree(LONG bytes, PVOID address);
+
   
    static HRESULT HostWait(HANDLE hWait, DWORD dwMilliseconds, DWORD dwOption);
    static HRESULT Sleep(DWORD dwMilliseconds, DWORD dwOption);

@@ -3,6 +3,7 @@
 #define SH_IOCOMPLETION_MANAGER_H_INCLUDED
 
 #include "../Common.h"
+#include "../HostContext.h"
 
 const int MAX_COMPLETION_PORTS = 16;
 
@@ -10,6 +11,7 @@ class SHIoCompletionManager : public IHostIoCompletionManager {
 private:
    volatile LONG m_cRef;
    ICLRIoCompletionManager* clrIoCompletionManager;
+   HostContext* hostContext;
 
    HANDLE globalCompletionPort;
    CRITICAL_SECTION* pLock;
@@ -37,7 +39,7 @@ private:
    bool HasCompletionPortThreadpool(HANDLE hPort);
 
 public:
-   SHIoCompletionManager();
+   SHIoCompletionManager(HostContext* context);
    ~SHIoCompletionManager();
 
    // IUnknown functions

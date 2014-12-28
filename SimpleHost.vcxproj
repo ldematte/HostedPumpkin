@@ -108,6 +108,7 @@
     <ClInclude Include="Assembly\FileStream.h" />
     <ClInclude Include="Common.h" />
     <ClInclude Include="EventManager.h" />
+    <ClInclude Include="AppDomainInfo.h" />
     <ClInclude Include="HostContext.h" />
     <ClInclude Include="PolicyManager.h" />
     <ClInclude Include="Threading\Crst.h" />

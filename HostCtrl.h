@@ -37,7 +37,7 @@ private:
    SHEventManager* eventManager;
    SHPolicyManager* policyManager;
 
-   HostContext hostContext;
+   HostContext* hostContext;
 
 public:
    DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<AssemblyInfo>& hostAssemblies);
@@ -56,6 +56,8 @@ public:
    STDMETHODIMP SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager);
 
    ISimpleHostDomainManager* GetDomainManagerForDefaultDomain();
+   IHostContext* GetHostContext();
+
    bool SetupEscalationPolicy();
 };
 

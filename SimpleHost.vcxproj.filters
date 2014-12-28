@@ -155,5 +155,8 @@
     <ClInclude Include="PolicyManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="AppDomainInfo.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

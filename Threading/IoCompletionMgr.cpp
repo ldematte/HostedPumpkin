@@ -15,9 +15,10 @@ int GetCpuCount() {
    return sysInfo.dwNumberOfProcessors;
 }
 
-SHIoCompletionManager::SHIoCompletionManager() {
+SHIoCompletionManager::SHIoCompletionManager(HostContext* context) {
    m_cRef = 0;
    clrIoCompletionManager = NULL;
+   hostContext = context;
    globalCompletionPort = NULL;
 
    numberOfPorts = 0;

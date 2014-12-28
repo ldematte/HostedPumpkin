@@ -46,6 +46,8 @@
     <Reference Include="System.Xml" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="AppDomainHelpers.cs" />
+    <Compile Include="DomainPool.cs" />
     <Compile Include="SimpleHostAppDomainManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleHostSecurityManager.cs" />

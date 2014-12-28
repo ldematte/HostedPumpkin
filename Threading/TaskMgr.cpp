@@ -8,9 +8,10 @@
 //unreferenced formal parameter
 #pragma warning (disable: 4100)
 
-SHTaskManager::SHTaskManager() {
+SHTaskManager::SHTaskManager(HostContext* context) {
    m_cRef = 0;
    m_pCLRTaskManager = NULL;
+   hostContext = context;
    
    // Instantiate maps and associated critical sections.
    nativeThreadMapCrst = new CRITICAL_SECTION;
@@ -75,14 +76,37 @@ STDMETHODIMP SHTaskManager::GetCurrentTask(/* out */ IHostTask **pTask) {
    return S_OK;
 }
 
+struct ThreadStubParameters {
+   LPTHREAD_START_ROUTINE pThreadFunction;
+   LPVOID lpThreadParameter;
+   SHTaskManager* taskManager;
+};
+
+DWORD WINAPI ThreadStub(LPVOID lpThreadParameter) {
+   ThreadStubParameters* parameter = (ThreadStubParameters*) lpThreadParameter;
+
+   DWORD retval = parameter->pThreadFunction(parameter->lpThreadParameter);
+   // If this function returs, the thread is about to exit.
+   parameter->taskManager->RemoveTask(::GetCurrentThreadId());
+   delete parameter;
+
+   return retval;
+}
+
 STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTHREAD_START_ROUTINE pStartAddress, /* in */ PVOID pParameter, /* out */ IHostTask **ppTask) {
    Logger::Info("TaskManager::CreateTask");
    DWORD dwThreadId;
+
+   ThreadStubParameters* params = new ThreadStubParameters;
+   params->pThreadFunction = pStartAddress;
+   params->lpThreadParameter = pParameter;
+   params->taskManager = this;
+
    HANDLE hThread = CreateThread(
       NULL,
       dwStackSize,
-      pStartAddress,
-      pParameter,
+      ThreadStub,
+      params,
       CREATE_SUSPENDED | STACK_SIZE_PARAM_IS_A_RESERVATION,
       &dwThreadId);
 
@@ -92,7 +116,9 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
       *ppTask = NULL;
       return E_OUTOFMEMORY;
    }
-   Logger::Debug("Created task for NEW thread %d - %x -- child of %d", dwThreadId, task, ::GetCurrentThreadId());
+   DWORD dwParentThreadId = ::GetCurrentThreadId();
+   Logger::Debug("Created task for NEW thread %d - %x -- child of %d", dwThreadId, task, dwParentThreadId);
+   hostContext->OnThreadAcquire(dwParentThreadId, dwThreadId);
 
    CrstLock crst(nativeThreadMapCrst);
    nativeThreadMap.insert(std::map<DWORD, IHostTask*>::value_type(dwThreadId, task));
@@ -110,7 +136,7 @@ STDMETHODIMP SHTaskManager::Sleep(/* in */ DWORD dwMilliseconds, /* in */ DWORD 
 }
 
 STDMETHODIMP SHTaskManager::SwitchToTask(/* in */ DWORD option) {
-   Logger::Info("TaskManager::SwitchToTask");
+   Logger::Debug("TaskManager::SwitchToTask");
    //TODO: recognize 'option'?
    SwitchToThread();
    return S_OK;
@@ -230,6 +256,7 @@ void SHTaskManager::AddManagedTask(IHostTask* hostTask, ICLRTask* managedTask, D
 
 void SHTaskManager::RemoveTask(DWORD nativeThreadId) {
    Logger::Debug("In TaskManager::RemoveTask: %d", nativeThreadId);
+   hostContext->OnThreadRelease(nativeThreadId);
 
    CrstLock nativeMapLock(nativeThreadMapCrst);
    nativeThreadMap.erase(nativeThreadId);

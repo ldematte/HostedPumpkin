@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.InteropServices;
@@ -22,6 +23,12 @@ namespace SimpleHostRuntime {
       Zombie
    };
 
+   [ComVisible(true), Guid("2AF95991-AF3E-4192-B1AC-8FD254E087F3")]
+   [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+   public interface IHostContext {
+      int GetThreadCount(int appDomainId);
+   }
+
    [ComVisible(true), Guid("A603EC84-3449-47B9-BCF5-391C628067D6")]
    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
    public interface ISimpleHostDomainManager {
@@ -29,20 +36,17 @@ namespace SimpleHostRuntime {
       int GetStatus();
       int GetMainThreadManagedId();
 
-      int Run(string assemblyFileName);
-      int Run(string assemblyFileName, string mainTypeName, string methodName);
-      int RunAsync(string assemblyFileName, string mainTypeName, string methodName);
-      int RunSandboxed(string assemblyFileName, string mainTypeName, string methodName);
-      int RunSandboxedAsync(string assemblyFileName, string mainTypeName, string methodName);
+      void RegisterHostContext(IHostContext hostContext);
+
+      void RunSnippet(string assemblyFileName, string mainTypeName, string methodName);
+      void OnMainThreadExit(int appDomainId, bool cleanExit);
    }
 
    [ComVisible(true), Guid("3D4364E5-790F-4F34-A655-EFB05A40BA07"),
         ClassInterface(ClassInterfaceType.None),
         ComSourceInterfaces(typeof(ISimpleHostDomainManager))]
    [SecuritySafeCritical]
-   public class SimpleHostAppDomainManager : System.AppDomainManager, ISimpleHostDomainManager {
-
-      public const int ExecutionTimeout = 2000;
+   public class SimpleHostAppDomainManager : System.AppDomainManager, ISimpleHostDomainManager {      
 
       private Status status;
       public int GetStatus() {
@@ -67,6 +71,11 @@ namespace SimpleHostRuntime {
          exception = ex;
       }
 
+
+      IHostContext hostContext;
+      DomainPool domainPool;
+      public event Action<int> DomainUnload;
+       
       public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
          Reset();
 
@@ -84,75 +93,47 @@ namespace SimpleHostRuntime {
             new ReflectionPermission(PermissionState.Unrestricted).Assert();
             AppDomain.CurrentDomain.AssemblyResolve += domain_AssemblyResolve;
             AppDomain.CurrentDomain.AssemblyLoad += domain_AssemblyLoad;
+
+            int currentDomainId = AppDomain.CurrentDomain.Id;
+            AppDomain.CurrentDomain.DomainUnload += (sender, e) => {
+               domain_DomainUnload(currentDomainId);
+            };
+
             ReflectionPermission.RevertAssert();
          //}
       }
 
-      private static AppDomain CreateSandbox(string sandboxName) {
-         
-         //Setting the AppDomainSetup. It is very important to set the ApplicationBase to a folder 
-         //other than the one in which the sandboxer resides.
-         AppDomainSetup adSetup = new AppDomainSetup();
-         adSetup.ApplicationBase = "NOT_A_PATH";
-         // Do not search the application base directory at all
-         adSetup.DisallowApplicationBaseProbing = true;
-
-         // With the restrictions we have this should never work anyway.
-         // But let's set it in case future versions allow some sort of network access anyway..
-         adSetup.DisallowCodeDownload = true;
-
-         //Setting the permissions for the AppDomain. We give the permission to execute and to 
-         //read/discover the location where the untrusted code is loaded.
-         PermissionSet permSet = new PermissionSet(PermissionState.None);
-         permSet.AddPermission(new SecurityPermission(SecurityPermissionFlag.Execution));
-
-         //We want the sandboxer assembly's strong name, so that we can add it to the full trust list.
-         StrongName fullTrustAssembly = typeof(SimpleHostAppDomainManager).Assembly.Evidence.GetHostEvidence<StrongName>();
-
-         //Now we have everything we need to create the AppDomain, so let's create it.
-         AppDomain domain = AppDomain.CreateDomain(sandboxName, null, adSetup, permSet, fullTrustAssembly);
-         AppDomain.MonitoringIsEnabled = true;        
-
-         return domain;
-      }        
-
-      public int Run(string assemblyFileName) {
-         var appDomain = AppDomain.CreateDomain("Host Domain");
-         int exitCode = appDomain.ExecuteAssembly(assemblyFileName);
-         AppDomain.Unload(appDomain);
-         return exitCode;
+      void domain_DomainUnload(int domainId) {
+         if (DomainUnload != null)
+            DomainUnload(domainId);
       }
 
-      private int RunInDomain(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName, bool runningInSandbox) {
-         var manager = (SimpleHostAppDomainManager)ad.DomainManager;
-         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName, runningInSandbox);
-         return ad.Id;
+      public void RegisterHostContext(IHostContext hostContext) {
+         // Call this only for the default appdomain
+         Debug.Assert(AppDomain.CurrentDomain.IsDefaultAppDomain());
+         // and only once
+         Debug.Assert(domainPool == null);
+         domainPool = new DomainPool(this);
+
+         this.hostContext = hostContext;
+      }      
+
+      public void RunSnippet(string assemblyFileName, string mainTypeName, string methodName) {
+         domainPool.SubmitSnippet(new SnippetInfo() {
+            assemblyFileName = assemblyFileName, 
+            mainTypeName = mainTypeName, 
+            methodName = methodName
+         });
       }
 
-      private int RunInDomainAsync(AppDomain ad, string assemblyFileName, string mainTypeName, string methodName, bool runningInSandbox) {
-         var manager = (SimpleHostAppDomainManager)ad.DomainManager;
-         manager.InternalRun(ad, assemblyFileName, mainTypeName, methodName, runningInSandbox);
-         return ad.Id;
-      }
+      public void OnMainThreadExit(int appDomainId, bool cleanExit) {
+         // This is one alternative: we let the main thread exit, and we check if it exited cleanly.
+         // This puts (asks) more control in the hands of the Host
+         // Currently, we adopt another approach: we "return" from the snippet code, but do not exit the thread.
+         // So we need a way to check (ask) the host if the AppDomain has more threads running.
+         // If so, we need to unload the domain to clean up what was left behind
 
-      public int Run(string assemblyFileName, string mainTypeName, string methodName) {
-         var ad = AppDomain.CreateDomain(assemblyFileName, null, null);
-         return RunInDomain(ad, assemblyFileName, mainTypeName, methodName, false);
-      }
-
-      public int RunAsync(string assemblyFileName, string mainTypeName, string methodName) {
-         var ad = AppDomain.CreateDomain(assemblyFileName, null, null);
-         return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName, false);
-      }
-
-      public int RunSandboxed(string assemblyFileName, string mainTypeName, string methodName) {
-         var ad = CreateSandbox("Host Sandbox Domain");
-         return RunInDomain(ad, assemblyFileName, mainTypeName, methodName, true);
-      }
-
-      public int RunSandboxedAsync(string assemblyFileName, string mainTypeName, string methodName) {
-         var ad = CreateSandbox("Host Sandbox Domain");
-         return RunInDomainAsync(ad, assemblyFileName, mainTypeName, methodName, true);
+         System.Diagnostics.Debug.WriteLine("Main thread exited from domain {0}, clean: {1}", appDomainId, cleanExit);
       }
 
       static Assembly domain_AssemblyResolve(object sender, ResolveEventArgs args) {
@@ -187,7 +168,7 @@ namespace SimpleHostRuntime {
       //}
 
       //[SecuritySafeCritical]
-      private void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName,
+      internal void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName,
                                bool runningInSandbox) {
 
          try {
@@ -200,69 +181,48 @@ namespace SimpleHostRuntime {
             AssemblyName an = AssemblyName.GetAssemblyName(assemblyFileName);
             var clientAssembly = appDomain.Load(an);
             CodeAccessPermission.RevertAssert();
-            
+
             status = Status.Running;
             // Here we already are on the new domain
-            // TODO: implement our own thread-pool here?
-            // We would like to get the ThreadID, and return it..
-            var thread = new Thread(() => {
-               try {
-                  //Load the MethodInfo for a method in the new Assembly. This might be a method you know, or 
-                  //you can use Assembly.EntryPoint to get to the main function in an executable.
-                  var type = clientAssembly.GetType(mainTypeName);
-                  if (type == null) {
-                     status = Status.Error;
-                     return;
-                  }
 
-                  // To allow code to invoke any nonpublic member: Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.MemberAccess flag
-                  // To allow code to invoke any nonpublic member, as long as the grant set of the assembly that contains the invoked member is 
-                  // the same as, or a subset of, the grant set of the assembly that contains the invoking code: 
-                  // Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.RestrictedMemberAccess flag.
-                  // See http://msdn.microsoft.com/en-us/library/stfy7tfc%28v=vs.110%29.aspx
-                  var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
-                  if (runningInSandbox)
-                     bindingFlags = BindingFlags.Public | BindingFlags.Static;
 
-                  var target = type.GetMethod(methodName, bindingFlags);
-                  if (target == null) {
-                     status = Status.Error;
-                     return;
-                  }
-
-                  //target.S Attributes = target.Attributes ^ MethodAttributes.Private;
-
-                  //Now invoke the method.
-                  target.Invoke(null, null);
-                  status = Status.Done;
-               }
-               catch (TargetInvocationException ex) {
-                  // When we print informations from a SecurityException extra information can be printed if we are 
-                  //calling it with a full-trust stack.                  
-                  (new PermissionSet(PermissionState.Unrestricted)).Assert();
-                  System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
-                  CodeAccessPermission.RevertAssert();
-                  exception = ex;
-                  status = Status.Error;
-               }
-               catch (Exception ex) {
-                  (new PermissionSet(PermissionState.Unrestricted)).Assert();
-                  System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.ToString());
-                  CodeAccessPermission.RevertAssert();
-                  exception = ex;
-                  status = Status.Error;
-               }
-            });
-                        
-            thread.Start();
-            try {
-               if (!thread.Join(ExecutionTimeout)) {
-                  status = Status.Timeout;
-               }            
+            //Load the MethodInfo for a method in the new Assembly. This might be a method you know, or 
+            //you can use Assembly.EntryPoint to get to the main function in an executable.
+            var type = clientAssembly.GetType(mainTypeName);
+            if (type == null) {
+               status = Status.Error;
+               return;
             }
-            catch (ThreadStateException ex) {
-               System.Diagnostics.Debug.WriteLine(ex.Message);
+
+            // To allow code to invoke any nonpublic member: Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.MemberAccess flag
+            // To allow code to invoke any nonpublic member, as long as the grant set of the assembly that contains the invoked member is 
+            // the same as, or a subset of, the grant set of the assembly that contains the invoking code: 
+            // Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.RestrictedMemberAccess flag.
+            // See http://msdn.microsoft.com/en-us/library/stfy7tfc%28v=vs.110%29.aspx
+            var bindingFlags = BindingFlags.Public | BindingFlags.NonPublic | BindingFlags.Static;
+            if (runningInSandbox)
+               bindingFlags = BindingFlags.Public | BindingFlags.Static;
+
+            var target = type.GetMethod(methodName, bindingFlags);
+            if (target == null) {
+               status = Status.Error;
+               return;
             }
+
+            //target.S Attributes = target.Attributes ^ MethodAttributes.Private;
+
+            //Now invoke the method.
+            target.Invoke(null, null);
+            status = Status.Done;
+         }
+         catch (TargetInvocationException ex) {
+            // When we print informations from a SecurityException extra information can be printed if we are 
+            //calling it with a full-trust stack.                  
+            (new PermissionSet(PermissionState.Unrestricted)).Assert();
+            System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
+            CodeAccessPermission.RevertAssert();
+            exception = ex;
+            status = Status.Error;
          }
          catch (Exception ex) {
             (new PermissionSet(PermissionState.Unrestricted)).Assert();
@@ -271,6 +231,6 @@ namespace SimpleHostRuntime {
             exception = ex;
             status = Status.Error;
          }
-      }      
+      }   
    }
 }

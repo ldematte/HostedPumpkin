@@ -161,15 +161,18 @@ int main(int argc, char* argv [])
 
       // Block all host protection categories.
       // TODO: only a relevant subset?
-      // TODO: how does this interact with the AppDomain PermissionSet?
+      // This "completes" the AppDomain PermissionSet
+      // Both are necessary, as this mechanism does not cover all
+      // aspects, but some. 
+      // It is a way to have some "in-depth" defense, and to prevent some
+      // functionalities that are not prevented by CAS (e.g.: Cannot call Thread.SetPriority, but
+      // can call Thread.Abort.
       hr = clrHostProtectionManager->SetProtectedCategories ( (EApiCategories)( 
-         eSelfAffectingProcessMgmt | 
-         eSelfAffectingThreading  |
-         eSynchronization  |
-         eSharedState  |
+         //eSynchronization  |
+         //eSharedState  |
          eExternalProcessMgmt  |
-         eExternalThreading  |
-         eSelfAffectingProcessMgmt  |
+         eSelfAffectingProcessMgmt |
+         //eExternalThreading  |
          eSelfAffectingThreading  |
          eSecurityInfrastructure  |
          eMayLeakOnAbort  |
@@ -222,20 +225,14 @@ int main(int argc, char* argv [])
    HRESULT hrExecute;
 
    bstr_t assemblyName = toBSTR(assemblyFileName);  
+
+   hrExecute = domainManager->RegisterHostContext(hostControl->GetHostContext());
    
-   if (methodName != "") {
-      bstr_t type = toBSTR(typeName);
-      bstr_t method = toBSTR(methodName);
-      if (useSandbox) {
-         hrExecute = domainManager->raw_RunSandboxed(assemblyName, type, method, &appDomainId);
-      }
-      else {
-         hrExecute = domainManager->raw_Run_2(assemblyName, type, method, &appDomainId);
-      }
-   }
-   else {
-      hrExecute = domainManager->raw_Run(assemblyName, &appDomainId);
-   }
+   bstr_t type = toBSTR(typeName);
+   bstr_t method = toBSTR(methodName);
+   
+   // TODO!!!
+   hrExecute = domainManager->raw_RunSnippet(assemblyName, type, method);
 
    if (!SUCCEEDED(hrExecute)) {
       Logger::Critical("Execution of method failed: 0x%x", hrExecute);      

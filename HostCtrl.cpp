@@ -23,15 +23,20 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
       Logger::Critical("Failed to obtain a CLR Control object");
    }
 
-   taskManager = new SHTaskManager();
+   hostContext = new HostContext();
+   if (!hostContext) {
+      Logger::Critical("Unable to allocate Host Context");
+   }
+
+   taskManager = new SHTaskManager(hostContext);
    syncManager = new SHSyncManager();
    memoryManager = new SHMemoryManager();
    gcManager = new SHGCManager();
    threadpoolManager = new SHThreadpoolManager();
-   iocpManager = new SHIoCompletionManager();
+   iocpManager = new SHIoCompletionManager(hostContext);
    assemblyManager = new SHAssemblyManager(hostAssemblies);
-   eventManager = new SHEventManager(&hostContext);
-   policyManager = new SHPolicyManager(&hostContext);
+   eventManager = new SHEventManager(hostContext);
+   policyManager = new SHPolicyManager(hostContext);
 
    // Register our Event Manager for the events we are interested in
    ICLROnEventManager* clrEventManager;
@@ -46,6 +51,8 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
       !iocpManager || !assemblyManager || !eventManager || !policyManager) {
       Logger::Critical("Unable to allocate Host Managers");
    }
+
+   hostContext->AddRef();
 
    taskManager->AddRef();
    syncManager->AddRef();
@@ -72,6 +79,8 @@ DHHostControl::~DHHostControl() {
    assemblyManager->Release();
    eventManager->Release();
    policyManager->Release();
+
+   hostContext->Release();
 }
 
 STDMETHODIMP_(VOID) DHHostControl::ShuttingDown() {
@@ -107,27 +116,26 @@ STDMETHODIMP DHHostControl::QueryInterface(const IID &riid, void **ppvObject) {
 
 STDMETHODIMP DHHostControl::GetHostManager(const IID &riid, void **ppvHostManager) {
    if (riid == IID_IHostTaskManager)
-      taskManager->QueryInterface(IID_IHostTaskManager, ppvHostManager);
-   else if (riid == IID_IHostSyncManager)
-      syncManager->QueryInterface(IID_IHostSyncManager, ppvHostManager);
-   else if (riid == IID_IHostMemoryManager)
-      memoryManager->QueryInterface(IID_IHostMemoryManager, ppvHostManager);
-   else if (riid == IID_IHostGCManager)
-      gcManager->QueryInterface(IID_IHostGCManager, ppvHostManager);
-   else if (riid == IID_IHostIoCompletionManager)
-      iocpManager->QueryInterface(IID_IHostIoCompletionManager, ppvHostManager);
-   else if (riid == IID_IHostThreadpoolManager)
-      threadpoolManager->QueryInterface(IID_IHostThreadpoolManager, ppvHostManager);
-   else if (riid == IID_IHostAssemblyManager)
-      assemblyManager->QueryInterface(IID_IHostAssemblyManager, ppvHostManager);
-   else if (riid == IID_IActionOnCLREvent)
-      eventManager->QueryInterface(IID_IActionOnCLREvent, ppvHostManager);
-   else if (riid == IID_IHostPolicyManager)
-      policyManager->QueryInterface(IID_IHostPolicyManager, ppvHostManager);
-   else
-      ppvHostManager = NULL;
-
-   return S_OK;
+      return taskManager->QueryInterface(IID_IHostTaskManager, ppvHostManager);
+   if (riid == IID_IHostSyncManager)
+      return syncManager->QueryInterface(IID_IHostSyncManager, ppvHostManager);
+   if (riid == IID_IHostMemoryManager)
+      return memoryManager->QueryInterface(IID_IHostMemoryManager, ppvHostManager);
+   if (riid == IID_IHostGCManager)
+      return gcManager->QueryInterface(IID_IHostGCManager, ppvHostManager);
+   if (riid == IID_IHostIoCompletionManager)
+      return iocpManager->QueryInterface(IID_IHostIoCompletionManager, ppvHostManager);
+   if (riid == IID_IHostThreadpoolManager)
+      return threadpoolManager->QueryInterface(IID_IHostThreadpoolManager, ppvHostManager);
+   if (riid == IID_IHostAssemblyManager)
+      return assemblyManager->QueryInterface(IID_IHostAssemblyManager, ppvHostManager);
+   if (riid == IID_IActionOnCLREvent)
+      return eventManager->QueryInterface(IID_IActionOnCLREvent, ppvHostManager);
+   if (riid == IID_IHostPolicyManager)
+      return policyManager->QueryInterface(IID_IHostPolicyManager, ppvHostManager);
+   
+   ppvHostManager = NULL;
+   return E_NOINTERFACE;
 }
 
 STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *pUnkAppDomainManager) {
@@ -141,32 +149,45 @@ STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *p
    //[out] A pointer to the address of an ICLRTask instance that is currently executing on the operating system thread 
    //from which the call originated, or null if no task is currently executing on this thread.
 
-   // TODO: this may not be the ideal place; it depends on how the domains are created.
-   // taskManager->RegisterNewAppDomain(dwAppDomainID, currentTask, ::GetCurrentThreadId());
-
    HRESULT hr = pUnkAppDomainManager->QueryInterface(__uuidof(ISimpleHostDomainManager), (PVOID*) &domainManager);
 
    if (FAILED(hr)) {
       domainManager = NULL;
    }
+   
 
-   hostContext.OnDomainCreate(dwAppDomainID, domainManager);
+   if (domainManager) {
+      // TODO: call ISimpleHostDomainManager->GetMainThreadManagedId to perform a cross-check
+      Logger::Debug("New AppDomain %d has main thread (managed) %d", domainManager->GetMainThreadManagedId());
+      // Perform cross-check with the Thread*
+   }
+   
+
+   // TODO: this may not be the ideal place; it depends on how the domains are created.
+   // taskManager->RegisterNewAppDomain(dwAppDomainID, currentTask, ::GetCurrentThreadId());
+   hostContext->OnDomainCreate(dwAppDomainID, ::GetCurrentThreadId(), domainManager);
    return hr;
 }
 
 ISimpleHostDomainManager* DHHostControl::GetDomainManagerForDefaultDomain() {
-   return hostContext.GetDomainManagerForDefaultDomain();   
+   return hostContext->GetDomainManagerForDefaultDomain();   
+}
+
+IHostContext* DHHostControl::GetHostContext() {
+   //if (hostContext)
+   //   hostContext->AddRef();
+   return hostContext;
 }
 
 bool DHHostControl::SetupEscalationPolicy() {
    ICLRPolicyManager* clrPolicyManager = NULL;
 
-   if (SUCCEEDED(m_pRuntimeControl->GetCLRManager(IID_ICLRPolicyManager, (void**) clrPolicyManager))) {
+   HRESULT hr = m_pRuntimeControl->GetCLRManager(IID_ICLRPolicyManager, (void**)&clrPolicyManager);
+
+   if (SUCCEEDED(hr)) {
 
       /////////////////////
       // Action -> Failures
-
-      HRESULT hr;
 
       // If we are not able to obtain a resource (OutOfMemoryException), unload the
       // AppDomain
@@ -180,11 +201,12 @@ bool DHHostControl::SetupEscalationPolicy() {
          Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
          return false;
       }
-      hr = clrPolicyManager->SetActionOnFailure(FAIL_AccessViolation, eUnloadAppDomain);
-      if (FAILED(hr)) {
-         Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
-         return false;
-      }
+      //Not supported in the.NET Framework 4
+      //hr = clrPolicyManager->SetActionOnFailure(FAIL_AccessViolation, eUnloadAppDomain);
+      //if (FAILED(hr)) {
+      //   Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
+      //   return false;
+      //}
 
       // Same if we get a orphaned lock: we only allow the usage of "AppDomain local" threading
       // primitives, so if it is orphaned, it is leaked only locally. "Solve" this by unloading
@@ -197,7 +219,7 @@ bool DHHostControl::SetupEscalationPolicy() {
       }
 
       // On a fatal runtime error, recycle the process
-      hr = clrPolicyManager->SetActionOnFailure(FAIL_FatalRuntime, eExitProcess);
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_FatalRuntime, eRudeExitProcess); // OR eDisableRuntime
       if (FAILED(hr)) {
          Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
          return false;
@@ -234,7 +256,7 @@ bool DHHostControl::SetupEscalationPolicy() {
       ////////////////////
       // Default actions (escalation without timeout)
 
-      hr = clrPolicyManager->SetDefaultAction(OPR_ThreadRudeAbortInCriticalRegion, eUnloadAppDomain);
+      hr = clrPolicyManager->SetDefaultAction(OPR_ThreadRudeAbortInCriticalRegion, eRudeUnloadAppDomain);
       if (FAILED(hr)) {
          Logger::Critical("Cannot SetDefaultAction: HRESULT %x", hr);
          return false;
