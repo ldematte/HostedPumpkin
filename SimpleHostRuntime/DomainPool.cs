@@ -26,7 +26,8 @@ namespace SimpleHostRuntime {
 
    public class DomainPool {
 
-      const int MaxReuse = -1; // How many times we want to reuse an AppDomain?
+      const int MaxReuse = 0; // How many times we want to reuse an AppDomain? (0 = infinite)
+      const int MaxZombies = 20; // How many "zombie" (potentially undead/leaking domains) we tolerate? (0 = infinite)
       const int NumberOfDomainsInPool = 16;
       const int runningThreshold = 3 * 1000; // 3 seconds
 
@@ -124,8 +125,14 @@ namespace SimpleHostRuntime {
             poolDomains[index] = null;
          }
 
-         AppDomain.Unload(AppDomain.CurrentDomain);
-         Interlocked.Decrement(ref numberOfThreadsInPool);        
+         if (MaxZombies > 0 && domainManager.GetNumberOfZombies() > MaxZombies) {
+            // TODO: break connection, signal our "partner"/ monitor we are going down
+            this.Exit();
+         }
+         else {
+            AppDomain.Unload(AppDomain.CurrentDomain);
+            Interlocked.Decrement(ref numberOfThreadsInPool);
+         }
       }
 
       private Thread CreateDomainThread(int threadIndex) {
@@ -203,7 +210,7 @@ namespace SimpleHostRuntime {
                      // TODO: check that AppDomain.DomainUnload is called anyway!
 
                      // Before looping, check if we are OK; we reuse the domain only if we are not leaking
-                     int threadsInDomain = 0; //domainManager.GetThreadCount(appDomain.Id);
+                     int threadsInDomain = domainManager.GetThreadCount(appDomain.Id);
                      if (threadsInDomain > 1) {
                         // The snippet is leaking threads
                         // We are saying "goodbye". Decrement the number of threads in the pool
@@ -212,9 +219,9 @@ namespace SimpleHostRuntime {
                         // TODO: flag snippet as "leaking"                    
                      }
                      // Same if the domain is too old
-                     else if (myPoolDomain.numberOfUsages >= MaxReuse) {
+                     else if (MaxReuse > 0 && myPoolDomain.numberOfUsages >= MaxReuse) {
                         RecycleDomain(threadIndex);
-                     }
+                     }                     
                      else {
                         // Otherwise, ensure that what was allocated by the snippet is freed
                         GC.Collect();
@@ -235,7 +242,7 @@ namespace SimpleHostRuntime {
       internal void SubmitSnippet(SnippetInfo snippetInfo) {
          // check if we need to re-introduce some domains in the pool
          if (Interlocked.Read(ref numberOfThreadsInPool) < NumberOfDomainsInPool) {
-            // A sort of "double-check optimization": we enter here only if there are no places, but
+            // A sort of "double-check optimization": we enter here only if there is a shortage of threads/domains, but
             // we actually create one only if there is a slot
             int emptySlotIdx = -1;
             lock (poolLock) {

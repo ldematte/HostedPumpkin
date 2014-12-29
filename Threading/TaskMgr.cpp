@@ -272,3 +272,8 @@ void SHTaskManager::RemoveTask(DWORD nativeThreadId) {
    }
    managedMapLock.Exit();
 }
+
+bool SHTaskManager::IsSnippetThread(DWORD nativeThreadId) {
+   Logger::Debug("In TaskManager::IsSnippetThread: %d", nativeThreadId);
+   return hostContext->IsSnippetThread(nativeThreadId);
+}

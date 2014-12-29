@@ -52,6 +52,7 @@ public:
    ICLRTaskManager* GetCLRTaskManager() { return m_pCLRTaskManager; }
    void AddManagedTask(IHostTask* hostTask, ICLRTask* managedTask, DWORD nativeThreadId);
    void RemoveTask(DWORD nativeThreadId);
+   bool IsSnippetThread(DWORD nativeThreadId);
 
 };
 

@@ -27,6 +27,7 @@ namespace SimpleHostRuntime {
    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
    public interface IHostContext {
       int GetThreadCount(int appDomainId);
+      int GetNumberOfZombies();
    }
 
    [ComVisible(true), Guid("A603EC84-3449-47B9-BCF5-391C628067D6")]
@@ -231,6 +232,14 @@ namespace SimpleHostRuntime {
             exception = ex;
             status = Status.Error;
          }
-      }   
+      }
+
+      internal int GetThreadCount(int appDomainId) {
+         return hostContext.GetThreadCount(appDomainId);
+      }
+
+      internal int GetNumberOfZombies() {
+         return hostContext.GetNumberOfZombies();
+      }
    }
 }

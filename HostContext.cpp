@@ -16,6 +16,7 @@ HostContext::HostContext() {
    m_cRef = 0;
 
    defaultDomainManager = NULL;
+   defaultDomainId = 1; 
    domainMapCrst = new CRITICAL_SECTION;
 
    numZombieDomains = 0;
@@ -59,6 +60,8 @@ STDMETHODIMP HostContext::raw_GetThreadCount(
    /*[in]*/ long appDomainId,
    /*[out,retval]*/ long * pRetVal) {
    Logger::Debug("In HostContext::GetThreadCount %d", appDomainId);
+   if (pRetVal == NULL)
+      return E_INVALIDARG;
    
    auto appDomainInfo = appDomains.find(appDomainId);
    if (appDomainInfo == appDomains.end()) {
@@ -69,7 +72,15 @@ STDMETHODIMP HostContext::raw_GetThreadCount(
    return S_OK;
 }
 
-
+STDMETHODIMP HostContext::raw_GetNumberOfZombies(
+   /*[out,retval]*/ long * pRetVal) {
+   Logger::Debug("In HostContext::raw_GetNumberOfZombies");
+   if (pRetVal == NULL)
+      return E_INVALIDARG;
+     
+   *pRetVal = numZombieDomains;
+   return S_OK;
+}
 
 void HostContext::OnDomainUnload(DWORD domainId) {
 
@@ -91,9 +102,10 @@ void HostContext::OnDomainCreate(DWORD dwAppDomainID, DWORD dwCurrentThreadId, I
    CrstLock(this->domainMapCrst);
    appDomains.insert(std::make_pair(dwAppDomainID, AppDomainInfo(dwCurrentThreadId, domainManager)));
    threadAppDomain.insert(std::make_pair(dwCurrentThreadId, dwAppDomainID));
-   if (defaultDomainManager == NULL)
+   if (defaultDomainManager == NULL) {
+      defaultDomainId = dwAppDomainID; // It should always be 1, but.. you never know
       defaultDomainManager = domainManager;
-   
+   }   
 }
 
 ISimpleHostDomainManager* HostContext::GetDomainManagerForDefaultDomain() {
@@ -144,6 +156,16 @@ bool HostContext::OnThreadRelease(DWORD dwThreadId) {
    }
 
    return false;
+}
+
+bool HostContext::IsSnippetThread(DWORD dwNativeThreadId) {
+   CrstLock(this->domainMapCrst);
+   
+   auto appDomain = threadAppDomain.find(dwNativeThreadId);
+   if (appDomain == threadAppDomain.end())
+      return false;
+
+   return (appDomain->second != defaultDomainId);
 }
 
 HRESULT HostContext::Sleep(DWORD dwMilliseconds, DWORD option) {

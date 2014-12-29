@@ -24,7 +24,7 @@ STDMETHODIMP SHPolicyManager::QueryInterface(const IID &riid, void **ppvObject) 
    if (ppvObject == NULL)
       return E_INVALIDARG;
 
-   if (riid == IID_IUnknown || riid == IID_IHostControl) {
+   if (riid == IID_IUnknown || riid == IID_IHostPolicyManager) {
       *ppvObject = this;
       AddRef();
       return S_OK;

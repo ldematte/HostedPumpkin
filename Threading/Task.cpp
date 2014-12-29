@@ -94,7 +94,13 @@ STDMETHODIMP SHTask::Join(/* in */ DWORD dwMilliseconds, /* in */ DWORD dwOption
 }
 
 STDMETHODIMP SHTask::SetPriority(/* in */ int newPriority) {
-   Logger::Info("In Task::SetPriority %d", newPriority);
+   Logger::Debug("In Task::SetPriority %d", newPriority);
+
+   // Do not allow managed threads (any of them) to increase their priority
+   // From MSDN: "A host can define its own algorithms for thread priority assignment, and is free to ignore this request."
+   if (newPriority > THREAD_PRIORITY_NORMAL && m_pTaskManager->IsSnippetThread(m_nativeId))
+      return S_OK;
+
    if (!SetThreadPriority(m_hThread, newPriority)) {
       Logger::Error("Couldn't set thread-priority");
       return HRESULT_FROM_WIN32(GetLastError());

@@ -26,6 +26,7 @@ private:
    volatile unsigned long numZombieDomains;
 
    ISimpleHostDomainManager* defaultDomainManager;
+   DWORD defaultDomainId;
 
 public:
    HostContext();
@@ -41,6 +42,9 @@ public:
       /*[in]*/ long appDomainId,
       /*[out,retval]*/ long * pRetVal);
 
+   virtual STDMETHODIMP raw_GetNumberOfZombies(
+      /*[out,retval]*/ long * pRetVal);
+
    void OnDomainUnload(DWORD domainId);
    void OnDomainRudeUnload();
    void OnDomainCreate(DWORD domainId, DWORD dwCurrentThreadId, ISimpleHostDomainManager* domainManager);
@@ -53,6 +57,7 @@ public:
    bool OnMemoryAlloc(DWORD dwThreadId, LONG bytes, PVOID address);
    bool OnMemoryFree(LONG bytes, PVOID address);
 
+   bool IsSnippetThread(DWORD nativeThreadId);
   
    static HRESULT HostWait(HANDLE hWait, DWORD dwMilliseconds, DWORD dwOption);
    static HRESULT Sleep(DWORD dwMilliseconds, DWORD dwOption);
