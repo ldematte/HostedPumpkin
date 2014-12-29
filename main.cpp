@@ -232,7 +232,7 @@ int main(int argc, char* argv [])
    bstr_t method = toBSTR(methodName);
    
    // TODO!!!
-   hrExecute = domainManager->raw_RunSnippet(assemblyName, type, method);
+   hrExecute = domainManager->raw_RunTests(assemblyName, type, method);
 
    if (!SUCCEEDED(hrExecute)) {
       Logger::Critical("Execution of method failed: 0x%x", hrExecute);      

@@ -42,8 +42,15 @@ public:
       /*[in]*/ long appDomainId,
       /*[out,retval]*/ long * pRetVal);
 
+   virtual STDMETHODIMP raw_GetMemoryUsage(
+      /*[in]*/ long appDomainId,
+      /*[out,retval]*/ long * pRetVal);
+
    virtual STDMETHODIMP raw_GetNumberOfZombies(
       /*[out,retval]*/ long * pRetVal);
+
+   virtual STDMETHODIMP raw_ResetCountersForAppDomain(/*[in]*/long appDomainId);
+   
 
    void OnDomainUnload(DWORD domainId);
    void OnDomainRudeUnload();

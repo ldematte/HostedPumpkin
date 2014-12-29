@@ -11,7 +11,7 @@ namespace SimpleHostRuntime {
 
    public class SnippetInfo {
       // TODO: prop
-      public string assemblyFileName;
+      public byte[] assemblyFile;
       public string mainTypeName;
       public string methodName;
    }
@@ -44,14 +44,13 @@ namespace SimpleHostRuntime {
 
       bool isExiting = false;
 
-      private readonly SimpleHostAppDomainManager domainManager;
+      private readonly SimpleHostAppDomainManager defaultDomainManager;
 
-      public DomainPool(SimpleHostAppDomainManager domainManager) {
-         this.domainManager = domainManager;
-         domainManager.DomainUnload += domainManager_DomainUnload;
+      public DomainPool(SimpleHostAppDomainManager defaultDomainManager) {
+         this.defaultDomainManager = defaultDomainManager;
+         defaultDomainManager.DomainUnload += domainManager_DomainUnload;
                   
          InitializeDomainPool();
-
       }
 
       void domainManager_DomainUnload(int domainId) {
@@ -100,6 +99,8 @@ namespace SimpleHostRuntime {
                         // Calling abort here is fine: the host will escalate it for us if it times
                         // out. Otherwise, we can still catch it and reuse the AppDomain
                         poolDomains[i].mainThread.Abort(timeoutAbortToken);
+                    
+                        // TODO: check also for appDomain.MonitoringTotalProcessorTime?
                      }
                   }
                }
@@ -125,7 +126,7 @@ namespace SimpleHostRuntime {
             poolDomains[index] = null;
          }
 
-         if (MaxZombies > 0 && domainManager.GetNumberOfZombies() > MaxZombies) {
+         if (MaxZombies > 0 && defaultDomainManager.GetNumberOfZombies() > MaxZombies) {
             // TODO: break connection, signal our "partner"/ monitor we are going down
             this.Exit();
          }
@@ -151,6 +152,7 @@ namespace SimpleHostRuntime {
                }
 
                while (!snippetsQueue.IsCompleted) {
+                  defaultDomainManager.ResetContextFor(myPoolDomain.domainId);
 
                   // And here is were we "rent" one AppDomain and use it to run a snippet
                   SnippetInfo snippetToRun = null;
@@ -163,7 +165,11 @@ namespace SimpleHostRuntime {
                      return;
                   }
 
+                  SnippetResult result = new SnippetResult();
+
                   if (snippetToRun != null) {
+
+                     Stopwatch stopwatch = Stopwatch.StartNew();
 
                      try {
                         Interlocked.Increment(ref myPoolDomain.numberOfUsages);
@@ -172,59 +178,88 @@ namespace SimpleHostRuntime {
 
                         // Thread transitions into the AppDomain
                         // This function DOES NOT throw
-                        manager.InternalRun(appDomain, snippetToRun.assemblyFileName, snippetToRun.mainTypeName, snippetToRun.methodName, true);
+                        manager.InternalRun(appDomain, snippetToRun.assemblyFile, snippetToRun.mainTypeName, snippetToRun.methodName, true);
 
 
                         // ...back to the main AppDomain
                         Debug.Assert(AppDomain.CurrentDomain.IsDefaultAppDomain());
                         // Flag it as "not executing"
-                        myPoolDomain.timeOfSubmission = 0;
+                        myPoolDomain.timeOfSubmission = 0;                       
 
                         // React to our DomainManager status (IF we are still alive here, there was no thread abort or domain unload!)
+                        result.status = SnippetStatus.Success;
                      }
                      catch (ThreadAbortException ex) {
                         // Someone called abort on us. 
                         // It may be possible to use this domain again, otherwise we will recycle
                         if (ex.ExceptionState == timeoutAbortToken) {
                            // The abort was issued by us because we timed out
-                           // TODO: set exit status
-                           Thread.ResetAbort();
+                           // Set exit status
+                           result.status = SnippetStatus.Timeout;
+                           result.exception = ex;
+                           Thread.ResetAbort(); // Reset and try to reuse this thread/AppDomain
                         }
                         // If it wasn't us, let the abort continue. Our policy will take down the domain
                      }
                      catch (Exception ex) {
+                        result.exception = ex;
                         // Check if someone is misbehaving, throwing something else to "mask" the TAE
                         if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.AbortRequested) {
+                           result.status = SnippetStatus.CriticalError;
                            Thread.ResetAbort();
                         }
-
-                        // TODO: record exception, exit status
+                        else {
+                           result.status = SnippetStatus.ExecutionError;
+                        }
                      }
-                     catch {
-                        // Things like "throw 10"
-                        // TODO: record exit status
-                     }
+                     // "Although C# only allows you to throw objects of type Exception and types deriving from it, 
+                     // other languages don’t have any such restriction."
+                     // http://weblogs.asp.net/kennykerr/introduction-to-msil-part-5-exception-handling
+                     // No longer necessary
+                     // http://blogs.msdn.com/b/jmanning/archive/2005/09/16/469091.aspx
+                     // catch { }
 
                      // No need to catch StackOverflowException; the Host will escalate to a (rude) domain unload
                      // for us
                      // TODO: check that AppDomain.DomainUnload is called anyway!
 
+                     result.executionTime = stopwatch.ElapsedMilliseconds;
+
                      // Before looping, check if we are OK; we reuse the domain only if we are not leaking
-                     int threadsInDomain = domainManager.GetThreadCount(appDomain.Id);
+                     int threadsInDomain = defaultDomainManager.GetThreadCount(appDomain.Id);
+                     int memoryUsage = defaultDomainManager.GetMemoryUsage(appDomain.Id);
+
+                     System.Diagnostics.Debug.WriteLine("============= AppDomain %d =============", appDomain.Id);
+                     System.Diagnostics.Debug.WriteLine("Finished in: %d", result.executionTime);
+                     System.Diagnostics.Debug.WriteLine("Status: %d", result.status);
+                     if (result.exception != null)
+                        System.Diagnostics.Debug.WriteLine("Exception: %s", result.exception.Message);
+                     System.Diagnostics.Debug.WriteLine("Threads: %d", threadsInDomain);
+                     System.Diagnostics.Debug.WriteLine("Memory: %d", memoryUsage);
+                     System.Diagnostics.Debug.WriteLine("Status: %d", memoryUsage);
+                     System.Diagnostics.Debug.WriteLine("========================================");
+
                      if (threadsInDomain > 1) {
                         // The snippet is leaking threads
-                        // We are saying "goodbye". Decrement the number of threads in the pool
-                        RecycleDomain(threadIndex);
 
-                        // TODO: flag snippet as "leaking"                    
+                        // Flag snippet as "leaking" 
+                        result.status = SnippetStatus.CriticalError;
+                        System.Diagnostics.Debug.WriteLine("Leaking snippet");
+
+                        // We are saying "goodbye". Decrement the number of threads in the pool
+                        RecycleDomain(threadIndex);                   
                      }
                      // Same if the domain is too old
                      else if (MaxReuse > 0 && myPoolDomain.numberOfUsages >= MaxReuse) {
+                        System.Diagnostics.Debug.WriteLine("Domain too old");
                         RecycleDomain(threadIndex);
                      }                     
                      else {
                         // Otherwise, ensure that what was allocated by the snippet is freed
                         GC.Collect();
+                        System.Diagnostics.Debug.WriteLine("MonitoringSurvivedMemorySize %d: ", appDomain.MonitoringSurvivedMemorySize);
+                        System.Diagnostics.Debug.WriteLine("MonitoringTotalAllocatedMemorySize %d: ", appDomain.MonitoringTotalAllocatedMemorySize);
+                        System.Diagnostics.Debug.WriteLine("MonitoringTotalProcessorTime %d: ", appDomain.MonitoringTotalProcessorTime);
                      }
                   }
                }

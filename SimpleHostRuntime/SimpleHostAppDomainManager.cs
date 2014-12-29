@@ -13,21 +13,39 @@ using System.Threading.Tasks;
 
 namespace SimpleHostRuntime {
 
-   public enum Status {
+   [SecuritySafeCritical]
+   [Serializable]
+   public enum DomainStatus {
       Ready,
-      Running,
-      Done,
-      Error,
-      Timeout,
-      Unloading,
+      Busy,      
       Zombie
    };
+
+   [SecuritySafeCritical]
+   [Serializable]
+   public enum SnippetStatus {
+      Success,
+      InitializationError,
+      Timeout,
+      ExecutionError,
+      CriticalError
+   }
+
+   [SecuritySafeCritical]
+   [Serializable]
+   public struct SnippetResult {
+      public SnippetStatus status;
+      public Exception exception;
+      public long executionTime;
+   }
 
    [ComVisible(true), Guid("2AF95991-AF3E-4192-B1AC-8FD254E087F3")]
    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
    public interface IHostContext {
       int GetThreadCount(int appDomainId);
+      int GetMemoryUsage(int appDomainId);
       int GetNumberOfZombies();
+      void ResetCountersForAppDomain(int appDomainId);
    }
 
    [ComVisible(true), Guid("A603EC84-3449-47B9-BCF5-391C628067D6")]
@@ -40,6 +58,8 @@ namespace SimpleHostRuntime {
       void RegisterHostContext(IHostContext hostContext);
 
       void RunSnippet(string assemblyFileName, string mainTypeName, string methodName);
+      void RunTests(string assemblyFileName, string mainTypeName, string methodNamePrefix);
+
       void OnMainThreadExit(int appDomainId, bool cleanExit);
    }
 
@@ -73,8 +93,8 @@ namespace SimpleHostRuntime {
       }
 
 
-      IHostContext hostContext;
-      DomainPool domainPool;
+      static IHostContext hostContext = null;
+      static DomainPool domainPool = null;
       public event Action<int> DomainUnload;
        
       public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
@@ -114,17 +134,34 @@ namespace SimpleHostRuntime {
          Debug.Assert(AppDomain.CurrentDomain.IsDefaultAppDomain());
          // and only once
          Debug.Assert(domainPool == null);
-         domainPool = new DomainPool(this);
-
-         this.hostContext = hostContext;
+         SimpleHostAppDomainManager.hostContext = hostContext;
+         SimpleHostAppDomainManager.domainPool = new DomainPool(this);         
       }      
 
       public void RunSnippet(string assemblyFileName, string mainTypeName, string methodName) {
          domainPool.SubmitSnippet(new SnippetInfo() {
-            assemblyFileName = assemblyFileName, 
+            assemblyFile = System.IO.File.ReadAllBytes(assemblyFileName),
             mainTypeName = mainTypeName, 
             methodName = methodName
          });
+      }
+
+      public void RunTests(string assemblyFileName, string mainTypeName, string methodNamePrefix) {
+
+         byte[] rawAssembly = System.IO.File.ReadAllBytes(assemblyFileName);
+         var assembly = Assembly.ReflectionOnlyLoad(rawAssembly);
+
+         var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.Name.StartsWith(methodNamePrefix))
+            .Select(m => m.Name);
+
+         foreach (var method in methods) {
+            domainPool.SubmitSnippet(new SnippetInfo() {
+               assemblyFile = rawAssembly,
+               mainTypeName = mainTypeName,
+               methodName = method
+            });
+         }
       }
 
       public void OnMainThreadExit(int appDomainId, bool cleanExit) {
@@ -169,7 +206,7 @@ namespace SimpleHostRuntime {
       //}
 
       //[SecuritySafeCritical]
-      internal void InternalRun(AppDomain appDomain, string assemblyFileName, string mainTypeName, string methodName,
+      internal void InternalRun(AppDomain appDomain, byte[] assembly, string mainTypeName, string methodName,
                                bool runningInSandbox) {
 
          try {
@@ -179,8 +216,10 @@ namespace SimpleHostRuntime {
             // When loading the assembly, we need at least FileIOPermission. 
             // Calling it with a full-trust stack. TODO: only what is needed
             (new PermissionSet(PermissionState.Unrestricted)).Assert();
-            AssemblyName an = AssemblyName.GetAssemblyName(assemblyFileName);
-            var clientAssembly = appDomain.Load(an);
+            var clientAssembly = appDomain.Load(assembly);
+            //var clientAssembly = Assembly.Load(assembly, null, SecurityContextSource.CurrentAppDomain);
+            //AssemblyName an = AssemblyName.GetAssemblyName(assemblyFileName);
+            //var clientAssembly = appDomain.Load(an);            
             CodeAccessPermission.RevertAssert();
 
             status = Status.Running;
@@ -240,6 +279,14 @@ namespace SimpleHostRuntime {
 
       internal int GetNumberOfZombies() {
          return hostContext.GetNumberOfZombies();
+      }
+
+      internal void ResetContextFor(int appDomainId) {
+         hostContext.ResetCountersForAppDomain(appDomainId);
+      }
+
+      internal int GetMemoryUsage(int appDomainId) {
+         return hostContext.GetMemoryUsage(appDomainId);
       }
    }
 }

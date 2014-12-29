@@ -72,6 +72,22 @@ STDMETHODIMP HostContext::raw_GetThreadCount(
    return S_OK;
 }
 
+STDMETHODIMP HostContext::raw_GetMemoryUsage(
+   /*[in]*/ long appDomainId,
+   /*[out,retval]*/ long * pRetVal) {
+   Logger::Debug("In HostContext::GetThreadCount %d", appDomainId);
+   if (pRetVal == NULL)
+      return E_INVALIDARG;
+
+   auto appDomainInfo = appDomains.find(appDomainId);
+   if (appDomainInfo == appDomains.end()) {
+      Logger::Error("Cannot find AppDomain %d!", appDomainId);
+      return S_FALSE;
+   }
+   *pRetVal = appDomainInfo->second.bytesInAppDomain;
+   return S_OK;
+}
+
 STDMETHODIMP HostContext::raw_GetNumberOfZombies(
    /*[out,retval]*/ long * pRetVal) {
    Logger::Debug("In HostContext::raw_GetNumberOfZombies");
@@ -81,6 +97,20 @@ STDMETHODIMP HostContext::raw_GetNumberOfZombies(
    *pRetVal = numZombieDomains;
    return S_OK;
 }
+
+STDMETHODIMP HostContext::raw_ResetCountersForAppDomain(/*[in]*/long appDomainId) {
+   Logger::Debug("In HostContext::raw_ResetCountersForAppDomain");
+   auto appDomainInfo = appDomains.find(appDomainId);
+   if (appDomainInfo == appDomains.end()) {
+      Logger::Error("Cannot find AppDomain %d!", appDomainId);      
+   }
+   else {
+      appDomainInfo->second.bytesInAppDomain = 0;
+      appDomainInfo->second.threadsInAppDomain = 0;
+   }
+   return S_OK;
+}
+
 
 void HostContext::OnDomainUnload(DWORD domainId) {
 
