@@ -158,7 +158,7 @@ STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *p
 
    if (domainManager) {
       // TODO: call ISimpleHostDomainManager->GetMainThreadManagedId to perform a cross-check
-      Logger::Debug("New AppDomain %d has main thread (managed) %d", domainManager->GetMainThreadManagedId());
+      Logger::Debug("New AppDomain %d has main thread (managed) %d", dwAppDomainID, domainManager->GetMainThreadManagedId());
       // Perform cross-check with the Thread*
    }
    

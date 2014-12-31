@@ -51,7 +51,7 @@ STDMETHODIMP SHEventManager::OnEvent(EClrEvent event, PVOID data) {
 
    case Event_ClrDisabled:
       Logger::Debug("In EventManager::OnEvent: Event_ClrDisabled");
-      // TODO: recycle process
+      // TODO: recycle process (if not already shutting down!)
       break;
 
    case Event_MDAFired: {

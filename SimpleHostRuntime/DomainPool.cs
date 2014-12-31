@@ -28,7 +28,7 @@ namespace SimpleHostRuntime {
 
       const int MaxReuse = 0; // How many times we want to reuse an AppDomain? (0 = infinite)
       const int MaxZombies = 20; // How many "zombie" (potentially undead/leaking domains) we tolerate? (0 = infinite)
-      const int NumberOfDomainsInPool = 16;
+      const int NumberOfDomainsInPool = 1;
       const int runningThreshold = 3 * 1000; // 3 seconds
 
       // Using separate arrays may improve efficiency, especially if 
@@ -72,7 +72,8 @@ namespace SimpleHostRuntime {
 
          for (int i = 0; i < NumberOfDomainsInPool; ++i) {
             poolDomains[i] = new PooledDomainData();
-            CreateDomainThread(i);            
+            var thread = CreateDomainThread(i);
+            thread.Start();
          }
       }
 
@@ -98,6 +99,10 @@ namespace SimpleHostRuntime {
                         // Abort Thread i / Unload domain i
                         // Calling abort here is fine: the host will escalate it for us if it times
                         // out. Otherwise, we can still catch it and reuse the AppDomain
+                        System.Diagnostics.Debug.WriteLine("Timeout: aborting {0} in domain {1}", i, poolDomains[i].domainId);
+
+                        // Avoid to call Abort twice
+                        poolDomains[i].timeOfSubmission = 0;
                         poolDomains[i].mainThread.Abort(timeoutAbortToken);
                     
                         // TODO: check also for appDomain.MonitoringTotalProcessorTime?
@@ -132,6 +137,7 @@ namespace SimpleHostRuntime {
          }
          else {
             AppDomain.Unload(AppDomain.CurrentDomain);
+            // We are saying "goodbye". Decrement the number of threads in the pool                        
             Interlocked.Decrement(ref numberOfThreadsInPool);
          }
       }
@@ -164,12 +170,13 @@ namespace SimpleHostRuntime {
                      // We want to exit the pool
                      return;
                   }
-
-                  SnippetResult result = new SnippetResult();
-
+                  
                   if (snippetToRun != null) {
 
+                     System.Diagnostics.Debug.WriteLine("Starting snippet '" + snippetToRun.methodName + "' in domain " + myPoolDomain.domainId);
                      Stopwatch stopwatch = Stopwatch.StartNew();
+                     SnippetResult result = new SnippetResult();
+                     bool recycleDomain = false;
 
                      try {
                         Interlocked.Increment(ref myPoolDomain.numberOfUsages);
@@ -178,7 +185,7 @@ namespace SimpleHostRuntime {
 
                         // Thread transitions into the AppDomain
                         // This function DOES NOT throw
-                        manager.InternalRun(appDomain, snippetToRun.assemblyFile, snippetToRun.mainTypeName, snippetToRun.methodName, true);
+                        result = manager.InternalRun(appDomain, snippetToRun.assemblyFile, snippetToRun.mainTypeName, snippetToRun.methodName, true);
 
 
                         // ...back to the main AppDomain
@@ -206,6 +213,9 @@ namespace SimpleHostRuntime {
                         // Check if someone is misbehaving, throwing something else to "mask" the TAE
                         if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.AbortRequested) {
                            result.status = SnippetStatus.CriticalError;
+                           recycleDomain = true;
+
+                           // Give us time to record the result; we will recycle (unload) the domain
                            Thread.ResetAbort();
                         }
                         else {
@@ -229,14 +239,14 @@ namespace SimpleHostRuntime {
                      int threadsInDomain = defaultDomainManager.GetThreadCount(appDomain.Id);
                      int memoryUsage = defaultDomainManager.GetMemoryUsage(appDomain.Id);
 
-                     System.Diagnostics.Debug.WriteLine("============= AppDomain %d =============", appDomain.Id);
-                     System.Diagnostics.Debug.WriteLine("Finished in: %d", result.executionTime);
-                     System.Diagnostics.Debug.WriteLine("Status: %d", result.status);
+                     System.Diagnostics.Debug.WriteLine("============= AppDomain {0} =============", appDomain.Id);
+                     System.Diagnostics.Debug.WriteLine("Finished in: {0}", result.executionTime);
+                     System.Diagnostics.Debug.WriteLine("Status: {0}", result.status);
                      if (result.exception != null)
-                        System.Diagnostics.Debug.WriteLine("Exception: %s", result.exception.Message);
-                     System.Diagnostics.Debug.WriteLine("Threads: %d", threadsInDomain);
-                     System.Diagnostics.Debug.WriteLine("Memory: %d", memoryUsage);
-                     System.Diagnostics.Debug.WriteLine("Status: %d", memoryUsage);
+                        System.Diagnostics.Debug.WriteLine("Exception: " + result.exception.Message);
+                     System.Diagnostics.Debug.WriteLine("Threads: {0}", threadsInDomain);
+                     System.Diagnostics.Debug.WriteLine("Memory: {0}", memoryUsage);
+                     System.Diagnostics.Debug.WriteLine("Status: {0}", memoryUsage);
                      System.Diagnostics.Debug.WriteLine("========================================");
 
                      if (threadsInDomain > 1) {
@@ -246,30 +256,39 @@ namespace SimpleHostRuntime {
                         result.status = SnippetStatus.CriticalError;
                         System.Diagnostics.Debug.WriteLine("Leaking snippet");
 
-                        // We are saying "goodbye". Decrement the number of threads in the pool
-                        RecycleDomain(threadIndex);                   
-                     }
-                     // Same if the domain is too old
+                        recycleDomain = true;
+                        
+                     }                     
                      else if (MaxReuse > 0 && myPoolDomain.numberOfUsages >= MaxReuse) {
                         System.Diagnostics.Debug.WriteLine("Domain too old");
+
+                        // Same if the domain is too old
+                        recycleDomain = true;
+                     } 
+                   
+                     // TODO: return the result to the caller
+
+                     if (recycleDomain) {
+                        System.Diagnostics.Debug.WriteLine("Recycling domain...");
                         RecycleDomain(threadIndex);
-                     }                     
+                     }
                      else {
                         // Otherwise, ensure that what was allocated by the snippet is freed
                         GC.Collect();
-                        System.Diagnostics.Debug.WriteLine("MonitoringSurvivedMemorySize %d: ", appDomain.MonitoringSurvivedMemorySize);
-                        System.Diagnostics.Debug.WriteLine("MonitoringTotalAllocatedMemorySize %d: ", appDomain.MonitoringTotalAllocatedMemorySize);
-                        System.Diagnostics.Debug.WriteLine("MonitoringTotalProcessorTime %d: ", appDomain.MonitoringTotalProcessorTime);
+                        System.Diagnostics.Debug.WriteLine("MonitoringSurvivedMemorySize {0}", appDomain.MonitoringSurvivedMemorySize);
+                        System.Diagnostics.Debug.WriteLine("MonitoringTotalAllocatedMemorySize {0}", appDomain.MonitoringTotalAllocatedMemorySize);
+                        System.Diagnostics.Debug.WriteLine("MonitoringTotalProcessorTime {0}", appDomain.MonitoringTotalProcessorTime);
                      }
                   }
                }
             }
             catch (Exception ex) {
-               System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.ToString());
+               System.Diagnostics.Debug.WriteLine("Exception caught:\n" + ex.ToString());
                RecycleDomain(threadIndex);
             }
          });
 
+         thread.Name = "DomainPool thread " + threadIndex;
          myPoolDomain.mainThread = thread;
          return thread;
       }
@@ -291,7 +310,8 @@ namespace SimpleHostRuntime {
             }
 
             if (emptySlotIdx >= 0) {
-               CreateDomainThread(emptySlotIdx);
+               var thread = CreateDomainThread(emptySlotIdx);
+               thread.Start();
             }
          }
 

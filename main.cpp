@@ -26,7 +26,7 @@ int main(int argc, char* argv [])
    string assemblyFileName;
    string typeName;
    string methodName;
-   bool useSandbox = false;
+   bool useSandbox = true;
 
    CmdLine cmd("Simple CLR Host", ' ', "1.0");
    try {     
@@ -43,9 +43,6 @@ int main(int argc, char* argv [])
       ValueArg<string> methodNameArg("m", "method", "The method to invoke", false, "", "string");
       cmd.add(methodNameArg);
 
-      SwitchArg useSandboxArg("s", "sandbox", "Run in a sandbox AppDomain", false);
-      cmd.add(useSandboxArg);
-      
       cmd.parse(argc, argv);
 
       if (typeNameArg.isSet() != methodNameArg.isSet()) {
@@ -63,7 +60,6 @@ int main(int argc, char* argv [])
       assemblyFileName = assemblyFileNameArg.getValue();
       typeName = typeNameArg.getValue();
       methodName = methodNameArg.getValue();
-      useSandbox = useSandboxArg.getValue();
    }
    catch (ArgException &e) {
       cerr << "Error: " << e.error() << " for arg " << e.argId() << endl;      
@@ -175,8 +171,9 @@ int main(int argc, char* argv [])
          //eExternalThreading  |
          eSelfAffectingThreading  |
          eSecurityInfrastructure  |
-         eMayLeakOnAbort  |
-         eUI));
+         eMayLeakOnAbort  //|
+         //eUI
+         ));
 
       if (FAILED(hr)) {
          Logger::Critical("ICLRHostProtectionManager::SetProtectedCategories failed w / hr 0x % 08lx\n", hr);         
@@ -241,6 +238,8 @@ int main(int argc, char* argv [])
    else {
       Logger::Info("Executed code in AppDomain %ld", appDomainId);
    }
+
+   getchar();
 
    // Stop the CLR and cleanup.
    hostControl->ShuttingDown();

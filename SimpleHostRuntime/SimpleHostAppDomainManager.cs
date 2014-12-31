@@ -51,8 +51,6 @@ namespace SimpleHostRuntime {
    [ComVisible(true), Guid("A603EC84-3449-47B9-BCF5-391C628067D6")]
    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
    public interface ISimpleHostDomainManager {
-
-      int GetStatus();
       int GetMainThreadManagedId();
 
       void RegisterHostContext(IHostContext hostContext);
@@ -67,38 +65,20 @@ namespace SimpleHostRuntime {
         ClassInterface(ClassInterfaceType.None),
         ComSourceInterfaces(typeof(ISimpleHostDomainManager))]
    [SecuritySafeCritical]
-   public class SimpleHostAppDomainManager : System.AppDomainManager, ISimpleHostDomainManager {      
-
-      private Status status;
-      public int GetStatus() {
-         return (int)status;
-      }
+   public class SimpleHostAppDomainManager : System.AppDomainManager, ISimpleHostDomainManager {
 
       private int mainThreadManagedId = 0;
       public int GetMainThreadManagedId() {
          return mainThreadManagedId;
       }
 
-      private Exception exception;
-
-      private void Reset() {
-         status = Status.Ready;
-         exception = null;
-         mainThreadManagedId = 0;
-      }
-
-      private void Error(Exception ex) {
-         status = Status.Error;
-         exception = ex;
-      }
-
-
       static IHostContext hostContext = null;
       static DomainPool domainPool = null;
       public event Action<int> DomainUnload;
+      public event Action<int, Exception> FirstChanceException;
+      public event Action<int, Object> UnhandledException;
        
       public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
-         Reset();
 
          // From MSDN "The default InitializeNewDomain implementation does nothing"
          // base.InitializeNewDomain(appDomainInfo);
@@ -110,23 +90,48 @@ namespace SimpleHostRuntime {
          // object that is assigned to the AppDomainSetup.ApplicationTrust property of appDomainInfo, before 
          // you initialize the application domain.
 
+         int currentDomainId = AppDomain.CurrentDomain.Id;
+         // Hack: call System.Diagnostics.Debug.WriteLine before setting the domain_AssemblyLoad event,
+         // or the loading will trigger a loop.
+         System.Diagnostics.Debug.WriteLine("Initializing domain " + currentDomainId);
+
+
          //if (AppDomain.CurrentDomain.IsDefaultAppDomain()) {
+
             new ReflectionPermission(PermissionState.Unrestricted).Assert();
+
+            
+
             AppDomain.CurrentDomain.AssemblyResolve += domain_AssemblyResolve;
             AppDomain.CurrentDomain.AssemblyLoad += domain_AssemblyLoad;
 
-            int currentDomainId = AppDomain.CurrentDomain.Id;
             AppDomain.CurrentDomain.DomainUnload += (sender, e) => {
-               domain_DomainUnload(currentDomainId);
+               OnDomainUnload(currentDomainId);
+            };
+            AppDomain.CurrentDomain.FirstChanceException += (sender, e) => {
+               OnFirstChanceException(currentDomainId, e.Exception);
+            };
+            AppDomain.CurrentDomain.UnhandledException += (sender, e) => {
+               OnUnhandledException(currentDomainId, e.ExceptionObject);
             };
 
             ReflectionPermission.RevertAssert();
          //}
       }
 
-      void domain_DomainUnload(int domainId) {
+      void OnDomainUnload(int domainId) {
          if (DomainUnload != null)
             DomainUnload(domainId);
+      }
+
+      void OnFirstChanceException(int domainId, Exception ex) {
+         if (FirstChanceException != null)
+            FirstChanceException(domainId, ex);
+      }
+
+      void OnUnhandledException(int domainId, Object ex) {
+         if (UnhandledException != null)
+            UnhandledException(domainId, ex);
       }
 
       public void RegisterHostContext(IHostContext hostContext) {
@@ -151,17 +156,28 @@ namespace SimpleHostRuntime {
          byte[] rawAssembly = System.IO.File.ReadAllBytes(assemblyFileName);
          var assembly = Assembly.ReflectionOnlyLoad(rawAssembly);
 
-         var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name.StartsWith(methodNamePrefix))
-            .Select(m => m.Name);
+         var method = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.Name.StartsWith("SnippetTest23"))
+            .Select(m => m.Name)
+            .Single();
 
-         foreach (var method in methods) {
-            domainPool.SubmitSnippet(new SnippetInfo() {
+         domainPool.SubmitSnippet(new SnippetInfo() {
                assemblyFile = rawAssembly,
                mainTypeName = mainTypeName,
                methodName = method
             });
-         }
+
+         //var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
+         //   .Where(m => m.Name.StartsWith(methodNamePrefix))
+         //   .Select(m => m.Name);
+         //
+         //foreach (var method in methods) {
+         //   domainPool.SubmitSnippet(new SnippetInfo() {
+         //      assemblyFile = rawAssembly,
+         //      mainTypeName = mainTypeName,
+         //      methodName = method
+         //   });
+         //}
       }
 
       public void OnMainThreadExit(int appDomainId, bool cleanExit) {
@@ -206,9 +222,11 @@ namespace SimpleHostRuntime {
       //}
 
       //[SecuritySafeCritical]
-      internal void InternalRun(AppDomain appDomain, byte[] assembly, string mainTypeName, string methodName,
+      internal SnippetResult InternalRun(AppDomain appDomain, byte[] assembly, string mainTypeName, string methodName,
                                bool runningInSandbox) {
 
+         // Here we already are on the new domain
+         SnippetResult result = new SnippetResult();
          try {
             // Use this "trick" to go through the standard loader path.
             // This MAY be something we want, or something to avoid
@@ -222,16 +240,12 @@ namespace SimpleHostRuntime {
             //var clientAssembly = appDomain.Load(an);            
             CodeAccessPermission.RevertAssert();
 
-            status = Status.Running;
-            // Here we already are on the new domain
-
-
             //Load the MethodInfo for a method in the new Assembly. This might be a method you know, or 
             //you can use Assembly.EntryPoint to get to the main function in an executable.
             var type = clientAssembly.GetType(mainTypeName);
             if (type == null) {
-               status = Status.Error;
-               return;
+               result.status = SnippetStatus.InitializationError;
+               return result;
             }
 
             // To allow code to invoke any nonpublic member: Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.MemberAccess flag
@@ -245,32 +259,39 @@ namespace SimpleHostRuntime {
 
             var target = type.GetMethod(methodName, bindingFlags);
             if (target == null) {
-               status = Status.Error;
-               return;
+               result.status = SnippetStatus.InitializationError;
+               return result;
             }
 
             //target.S Attributes = target.Attributes ^ MethodAttributes.Private;
 
             //Now invoke the method.
             target.Invoke(null, null);
-            status = Status.Done;
+            result.status = SnippetStatus.Success;
          }
          catch (TargetInvocationException ex) {
+            result.exception = (ex.InnerException == null ? ex : ex.InnerException);
+
             // When we print informations from a SecurityException extra information can be printed if we are 
             //calling it with a full-trust stack.                  
             (new PermissionSet(PermissionState.Unrestricted)).Assert();
-            System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.InnerException.ToString());
+            System.Diagnostics.Debug.WriteLine("Exception caught: =================" +
+                                               result.exception.ToString() +
+                                               "===================================");
             CodeAccessPermission.RevertAssert();
-            exception = ex;
-            status = Status.Error;
+            
+            result.status = SnippetStatus.ExecutionError;
          }
          catch (Exception ex) {
             (new PermissionSet(PermissionState.Unrestricted)).Assert();
-            System.Diagnostics.Debug.WriteLine("Exception caught:\n{0}", ex.ToString());
+            System.Diagnostics.Debug.WriteLine("Exception caught: =================" +
+                                               ex.ToString() + 
+                                               "===================================");
             CodeAccessPermission.RevertAssert();
-            exception = ex;
-            status = Status.Error;
+            result.exception = ex;
+            result.status = SnippetStatus.ExecutionError;
          }
+         return result;
       }
 
       internal int GetThreadCount(int appDomainId) {

@@ -218,6 +218,27 @@ namespace TestApplication {
          }
       }
 
+      // - delay a TAE
+      public static void SnippetTest23() {
+         try {
+            ConsumingOperation();
+         }
+         catch (ThreadAbortException) {
+            Thread.Sleep(15 * 1000);
+         }
+      }
+
+      //- security EX + delay TAE
+      public static void SnippetTest24() {
+         try {
+            var filestream = System.IO.File.Create("Text.txt");
+         }
+         catch (ThreadAbortException) {
+            Thread.Sleep(15 * 1000);
+         }
+      }
+
+
       //- try to open a socket, connect
       //- try to open a socket, listen
       //- try to use a lot of "file" (handle-based) async operations (*)

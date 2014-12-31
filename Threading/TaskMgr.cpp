@@ -136,7 +136,7 @@ STDMETHODIMP SHTaskManager::Sleep(/* in */ DWORD dwMilliseconds, /* in */ DWORD 
 }
 
 STDMETHODIMP SHTaskManager::SwitchToTask(/* in */ DWORD option) {
-   Logger::Debug("TaskManager::SwitchToTask");
+   Logger::Info("TaskManager::SwitchToTask");
    //TODO: recognize 'option'?
    SwitchToThread();
    return S_OK;

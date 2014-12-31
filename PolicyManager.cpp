@@ -39,7 +39,7 @@ STDMETHODIMP SHPolicyManager::QueryInterface(const IID &riid, void **ppvObject) 
 STDMETHODIMP SHPolicyManager::OnDefaultAction(
    /* [in] */ EClrOperation operation,
    /* [in] */ EPolicyAction action) {
-   Logger::Info("In PolicyManager::OnDefaultAction %d - %d", operation, action);
+   Logger::Debug("In PolicyManager::OnDefaultAction %d - %d", operation, action);
 
    if (action == eRudeUnloadAppDomain)
       hostContext->OnDomainRudeUnload();
@@ -50,7 +50,7 @@ STDMETHODIMP SHPolicyManager::OnDefaultAction(
 STDMETHODIMP SHPolicyManager::OnTimeout(
    /* [in] */ EClrOperation operation,
    /* [in] */ EPolicyAction action) {
-   Logger::Info("In PolicyManager::OnTimeout %d - %d", operation, action);
+   Logger::Debug("In PolicyManager::OnTimeout %d - %d", operation, action);
 
    if (action == eRudeUnloadAppDomain)
       hostContext->OnDomainRudeUnload();
@@ -61,7 +61,7 @@ STDMETHODIMP SHPolicyManager::OnTimeout(
 STDMETHODIMP SHPolicyManager::OnFailure(
    /* [in] */ EClrFailure failure,
    /* [in] */ EPolicyAction action) {
-   Logger::Info("In PolicyManager::OnFailure %d - %d", failure, action);
+   Logger::Debug("In PolicyManager::OnFailure %d - %d", failure, action);
 
    if (action == eRudeUnloadAppDomain)
       hostContext->OnDomainRudeUnload();
