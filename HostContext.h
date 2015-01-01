@@ -19,9 +19,11 @@ private:
    LPCRITICAL_SECTION domainMapCrst;
    std::map<DWORD, AppDomainInfo> appDomains;
 
-   std::map<DWORD, DWORD> parentChildThread;
-   std::map<DWORD, DWORD> threadAppDomain;
+#ifdef TRACK_THREAD_RELATIONSHIP
+   std::map<DWORD, DWORD> childThreadToParent;
+#endif //TRACK_THREAD_RELATIONSHIP
 
+   std::map<DWORD, DWORD> threadAppDomain;
 
    volatile unsigned long numZombieDomains;
 

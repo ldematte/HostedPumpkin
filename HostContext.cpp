@@ -168,8 +168,10 @@ bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
       AppDomainInfo& domainInfo = appDomains.at(appDomainId);
       ++(domainInfo.threadsInAppDomain);
       threadAppDomain.insert(std::make_pair(dwThreadId, parentThreadDomain->second));
-      parentChildThread.insert(std::make_pair(dwParentThreadId, dwThreadId));
 
+#ifdef TRACK_THREAD_RELATIONSHIP
+      childThreadToParent.insert(std::make_pair(dwThreadId, dwParentThreadId));
+#endif //TRACK_THREAD_RELATIONSHIP
       return true;
    }
 
@@ -186,8 +188,27 @@ bool HostContext::OnThreadRelease(DWORD dwThreadId) {
       AppDomainInfo& domainInfo = appDomains.at(appDomainId);
       --(domainInfo.threadsInAppDomain);
 
-      // TODO
-      //parentChildThread.remove(std::make_pair(dwParentThreadId, dwThreadId));
+#ifdef TRACK_THREAD_RELATIONSHIP
+      // Remove thread child-parent relationship, where threadId is the parent
+      for (auto it = childThreadToParent.begin(); it != childThreadToParent.end(); ++it) {
+         DWORD childId = it->first;
+         DWORD parentId = it->second;
+         if (parentId == dwThreadId) {
+            // Get the new parent
+            auto parentParent = childThreadToParent.find(parentId);
+            // Insert the new child - grandfather relationship (if there is one)
+            if (parentParent != childThreadToParent.end()) {
+               childThreadToParent.insert(std::make_pair(childId, parentParent->first));
+            }
+
+            childThreadToParent.erase(it);
+            break;
+         }
+      }      
+      // Remove thread child-parent relationship, where threadId is the child
+      childThreadToParent.erase(dwThreadId);
+#endif //TRACK_THREAD_RELATIONSHIP
+
       threadAppDomain.erase(parentThreadDomain);
       if (domainInfo.mainThreadId == dwThreadId) {
          Logger::Debug("Thread %d is the domain main thread. Removing association with %d", dwThreadId, appDomainId);
