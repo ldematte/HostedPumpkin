@@ -218,7 +218,6 @@ int main(int argc, char* argv [])
    }
 
    int retVal = 0;
-   long appDomainId = 0L;
    HRESULT hrExecute;
 
    bstr_t assemblyName = toBSTR(assemblyFileName);  
@@ -232,12 +231,10 @@ int main(int argc, char* argv [])
    hrExecute = domainManager->raw_RunTests(assemblyName, type, method);
 
    if (!SUCCEEDED(hrExecute)) {
-      Logger::Critical("Execution of method failed: 0x%x", hrExecute);      
+      Logger::Critical("Execution of method raw_RunTests failed: 0x%x", hrExecute);      
       retVal = -1;
    }
-   else {
-      Logger::Info("Executed code in AppDomain %ld", appDomainId);
-   }
+
 
    getchar();
 

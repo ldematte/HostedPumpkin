@@ -10,7 +10,10 @@ struct ISimpleHostDomainManager;
 struct AppDomainInfo {
    
    AppDomainInfo(DWORD threadId, ISimpleHostDomainManager* manager) 
-      : mainThreadId(threadId), appDomainManager(manager) { }
+      : mainThreadId(threadId), appDomainManager(manager) { 
+      threadsInAppDomain = 1; // The "main" thread
+      bytesInAppDomain = 0;
+   }
 
    DWORD mainThreadId;
    ISimpleHostDomainManager* appDomainManager;

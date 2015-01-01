@@ -108,15 +108,20 @@ namespace SimpleHostRuntime {
             AppDomain.CurrentDomain.DomainUnload += (sender, e) => {
                OnDomainUnload(currentDomainId);
             };
-            AppDomain.CurrentDomain.FirstChanceException += (sender, e) => {
-               OnFirstChanceException(currentDomainId, e.Exception);
-            };
+            //AppDomain.CurrentDomain.FirstChanceException += (sender, e) => {
+            //   OnFirstChanceException(currentDomainId, e.Exception);
+            //};
             AppDomain.CurrentDomain.UnhandledException += (sender, e) => {
                OnUnhandledException(currentDomainId, e.ExceptionObject);
             };
 
             ReflectionPermission.RevertAssert();
          //}
+
+         // REVIEW: the assumption, for now, is that the thread that creates the AppDomain is the
+         // "main" thread, the one that will execute the snippet. 
+         // IF THIS CHANGES, there will be the need to review this bit
+            mainThreadManagedId = Thread.CurrentThread.ManagedThreadId;
       }
 
       void OnDomainUnload(int domainId) {
@@ -156,10 +161,11 @@ namespace SimpleHostRuntime {
          byte[] rawAssembly = System.IO.File.ReadAllBytes(assemblyFileName);
          var assembly = Assembly.ReflectionOnlyLoad(rawAssembly);
 
-         var method = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name.StartsWith("SnippetTest23"))
-            .Select(m => m.Name)
-            .Single();
+         var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
+               .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                  .Where(m => m.Name.StartsWith("SnippetTest23"))
+                  .Select(m => m.Name)
+                  .Single();
 
          domainPool.SubmitSnippet(new SnippetInfo() {
                assemblyFile = rawAssembly,
@@ -223,7 +229,7 @@ namespace SimpleHostRuntime {
 
       //[SecuritySafeCritical]
       internal SnippetResult InternalRun(AppDomain appDomain, byte[] assembly, string mainTypeName, string methodName,
-                               bool runningInSandbox) {
+                                         bool runningInSandbox) {
 
          // Here we already are on the new domain
          SnippetResult result = new SnippetResult();

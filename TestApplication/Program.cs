@@ -221,10 +221,14 @@ namespace TestApplication {
       // - delay a TAE
       public static void SnippetTest23() {
          try {
+            System.Diagnostics.Debug.WriteLine("SnippetTest23 starting");
             ConsumingOperation();
+            System.Diagnostics.Debug.WriteLine("SnippetTest23 done");
          }
          catch (ThreadAbortException) {
+            System.Diagnostics.Debug.WriteLine("SnippetTest23 delay abort");
             Thread.Sleep(15 * 1000);
+            System.Diagnostics.Debug.WriteLine("SnippetTest23 delay done");
          }
       }
 

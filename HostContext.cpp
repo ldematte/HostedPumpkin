@@ -106,7 +106,7 @@ STDMETHODIMP HostContext::raw_ResetCountersForAppDomain(/*[in]*/long appDomainId
    }
    else {
       appDomainInfo->second.bytesInAppDomain = 0;
-      appDomainInfo->second.threadsInAppDomain = 0;
+      appDomainInfo->second.threadsInAppDomain = 1;
    }
    return S_OK;
 }
@@ -131,7 +131,20 @@ void HostContext::OnDomainCreate(DWORD dwAppDomainID, DWORD dwCurrentThreadId, I
 
    CrstLock(this->domainMapCrst);
    appDomains.insert(std::make_pair(dwAppDomainID, AppDomainInfo(dwCurrentThreadId, domainManager)));
-   threadAppDomain.insert(std::make_pair(dwCurrentThreadId, dwAppDomainID));
+
+   // "Migrate" a thread, if it was already assigned to a domain
+   auto currentThreadDomain = threadAppDomain.find(dwCurrentThreadId);
+   if (currentThreadDomain != threadAppDomain.end()) {
+      DWORD currentAppDomainId = currentThreadDomain->second;
+      Logger::Debug("Thread %d moving from domain %d to domain %d", dwCurrentThreadId, currentAppDomainId, dwAppDomainID);
+      AppDomainInfo& domainInfo = appDomains.at(currentAppDomainId);
+      --(domainInfo.threadsInAppDomain);
+
+      currentThreadDomain->second = dwAppDomainID;
+   }
+   else {
+      threadAppDomain.insert(std::make_pair(dwCurrentThreadId, dwAppDomainID));
+   }
    if (defaultDomainManager == NULL) {
       defaultDomainId = dwAppDomainID; // It should always be 1, but.. you never know
       defaultDomainManager = domainManager;
@@ -172,15 +185,14 @@ bool HostContext::OnThreadRelease(DWORD dwThreadId) {
       Logger::Debug("Thread %d removed from domain %d", dwThreadId, appDomainId);
       AppDomainInfo& domainInfo = appDomains.at(appDomainId);
       --(domainInfo.threadsInAppDomain);
-      threadAppDomain.erase(dwThreadId);
+
       // TODO
       //parentChildThread.remove(std::make_pair(dwParentThreadId, dwThreadId));
-
       threadAppDomain.erase(parentThreadDomain);
       if (domainInfo.mainThreadId == dwThreadId) {
          Logger::Debug("Thread %d is the domain main thread. Removing association with %d", dwThreadId, appDomainId);
          defaultDomainManager->OnMainThreadExit(appDomainId, domainInfo.threadsInAppDomain == 0);
-         appDomains.erase(parentThreadDomain->second);
+         appDomains.erase(appDomainId);
       }
       return true;
    }
