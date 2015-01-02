@@ -131,6 +131,7 @@ STDMETHODIMP HostContext::raw_UnloadDomain(/*[in]*/long appDomainId) {
 
 void HostContext::OnDomainUnload(DWORD domainId) {
 
+   Logger::Debug("In HostContext::OnDomainUnload %d", domainId);
    CrstLock(this->domainMapCrst);
    auto domainIt = appDomains.find(domainId);
    if (domainIt != appDomains.end()) {
@@ -141,6 +142,7 @@ void HostContext::OnDomainUnload(DWORD domainId) {
 
 void HostContext::OnDomainRudeUnload() {
    //CrstLock(this->domainMapCrst);
+   Logger::Debug("In HostContext::OnDomainRudeUnload");
    InterlockedIncrement(&numZombieDomains);
 }
 
@@ -186,6 +188,10 @@ bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
       ++(domainInfo.threadsInAppDomain);
       threadAppDomain.insert(std::make_pair(dwThreadId, parentThreadDomain->second));
 
+      if (domainInfo.threadsInAppDomain > MAX_THREAD_PER_DOMAIN) {
+         defaultDomainManager->OnTooManyThreadsError(appDomainId);
+      }
+
 #ifdef TRACK_THREAD_RELATIONSHIP
       childThreadToParent.insert(std::make_pair(dwThreadId, dwParentThreadId));
 #endif //TRACK_THREAD_RELATIONSHIP
@@ -200,10 +206,22 @@ bool HostContext::OnThreadRelease(DWORD dwThreadId) {
    CrstLock(this->domainMapCrst);
    auto parentThreadDomain = threadAppDomain.find(dwThreadId);
    if (parentThreadDomain != threadAppDomain.end()) {
-      DWORD appDomainId = parentThreadDomain->second;
-      Logger::Debug("Thread %d removed from domain %d", dwThreadId, appDomainId);
-      AppDomainInfo& domainInfo = appDomains.at(appDomainId);
-      --(domainInfo.threadsInAppDomain);
+      DWORD appDomainId = parentThreadDomain->second;      
+      auto domainInfo = appDomains.find(appDomainId);
+      if (domainInfo == appDomains.end()) {
+         Logger::Debug("Releasing thread %d from already unloaded domain %d", dwThreadId, appDomainId);
+      }
+      else {
+         Logger::Debug("Thread %d removed from domain %d", dwThreadId, appDomainId);
+         --(domainInfo->second.threadsInAppDomain);
+         if (domainInfo->second.mainThreadId == dwThreadId) {
+            Logger::Debug("Thread %d is the domain main thread. Removing association with %d", dwThreadId, appDomainId);
+            defaultDomainManager->OnMainThreadExit(appDomainId, domainInfo->second.threadsInAppDomain == 0);
+            appDomains.erase(appDomainId);
+         }
+      }
+
+      threadAppDomain.erase(parentThreadDomain);
 
 #ifdef TRACK_THREAD_RELATIONSHIP
       // Remove thread child-parent relationship, where threadId is the parent
@@ -224,17 +242,9 @@ bool HostContext::OnThreadRelease(DWORD dwThreadId) {
       }      
       // Remove thread child-parent relationship, where threadId is the child
       childThreadToParent.erase(dwThreadId);
-#endif //TRACK_THREAD_RELATIONSHIP
-
-      threadAppDomain.erase(parentThreadDomain);
-      if (domainInfo.mainThreadId == dwThreadId) {
-         Logger::Debug("Thread %d is the domain main thread. Removing association with %d", dwThreadId, appDomainId);
-         defaultDomainManager->OnMainThreadExit(appDomainId, domainInfo.threadsInAppDomain == 0);
-         appDomains.erase(appDomainId);
-      }
+#endif //TRACK_THREAD_RELATIONSHIP      
       return true;
    }
-
    return false;
 }
 

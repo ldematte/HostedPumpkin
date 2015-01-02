@@ -12,6 +12,8 @@
 
 #include "AppDomainInfo.h"
 
+const int MAX_THREAD_PER_DOMAIN = 10;
+
 class HostContext: public IHostContext {
 private:
    volatile LONG m_cRef;

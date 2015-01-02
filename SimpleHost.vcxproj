@@ -111,6 +111,7 @@
     <ClInclude Include="AppDomainInfo.h" />
     <ClInclude Include="HostContext.h" />
     <ClInclude Include="PolicyManager.h" />
+    <ClInclude Include="Threading\CLRThread.h" />
     <ClInclude Include="Threading\Crst.h" />
     <ClInclude Include="CrstLock.h" />
     <ClInclude Include="Threading\ManualEvent.h" />

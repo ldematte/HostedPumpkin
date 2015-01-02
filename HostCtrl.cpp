@@ -3,6 +3,7 @@
 
 #include "HostCtrl.h"
 #include "Threading\TaskMgr.h"
+#include "Threading\CLRThread.h"
 #include "Threading\SyncMgr.h"
 #include "Memory\MemoryMgr.h"
 #include "Memory\GCMgr.h"
@@ -157,9 +158,11 @@ STDMETHODIMP DHHostControl::SetAppDomainManager(DWORD dwAppDomainID, IUnknown *p
    
 
    if (domainManager) {
-      // TODO: call ISimpleHostDomainManager->GetMainThreadManagedId to perform a cross-check
+      // Call ISimpleHostDomainManager->GetMainThreadManagedId to perform a cross-check
       Logger::Debug("New AppDomain %d has main thread (managed) %d", dwAppDomainID, domainManager->GetMainThreadManagedId());
       // Perform cross-check with the Thread*
+      CLRThread* thread = (CLRThread*)currentTask;
+      Logger::Debug("Main thread (managed) info. Id: %d", thread->m_ThreadId);
    }
    
 

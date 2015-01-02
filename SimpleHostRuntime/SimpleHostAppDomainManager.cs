@@ -28,7 +28,8 @@ namespace SimpleHostRuntime {
       InitializationError,
       Timeout,
       ExecutionError,
-      CriticalError
+      CriticalError,
+      ResourceError
    }
 
    [SecuritySafeCritical]
@@ -60,6 +61,7 @@ namespace SimpleHostRuntime {
       void RunTests(string assemblyFileName, string mainTypeName, string methodNamePrefix);
 
       void OnMainThreadExit(int appDomainId, bool cleanExit);
+      void OnTooManyThreadsError(int appDomainId);
    }
 
    [ComVisible(true), Guid("3D4364E5-790F-4F34-A655-EFB05A40BA07"),
@@ -163,29 +165,29 @@ namespace SimpleHostRuntime {
          var assembly = Assembly.ReflectionOnlyLoad(rawAssembly);
 
          //Run a single test
-         //var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
-         //      .GetMethods(BindingFlags.Public | BindingFlags.Static)
-         //         .Where(m => m.Name.StartsWith("SnippetTest23"))
-         //         .Select(m => m.Name)
-         //         .Single();
+         var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
+               .GetMethods(BindingFlags.Public | BindingFlags.Static)
+                  .Where(m => m.Name.StartsWith("SnippetTest7"))
+                  .Select(m => m.Name)
+                  .Single();
 
-         //domainPool.SubmitSnippet(new SnippetInfo() {
+         domainPool.SubmitSnippet(new SnippetInfo() {
+            assemblyFile = rawAssembly,
+            mainTypeName = mainTypeName,
+            methodName = method
+         });
+
+         //var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
+         //   .Where(m => m.Name.StartsWith(methodNamePrefix))
+         //   .Select(m => m.Name);
+
+         //foreach (var method in methods) {
+         //   domainPool.SubmitSnippet(new SnippetInfo() {
          //      assemblyFile = rawAssembly,
          //      mainTypeName = mainTypeName,
          //      methodName = method
          //   });
-
-         var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
-            .Where(m => m.Name.StartsWith(methodNamePrefix))
-            .Select(m => m.Name);
-
-         foreach (var method in methods) {
-            domainPool.SubmitSnippet(new SnippetInfo() {
-               assemblyFile = rawAssembly,
-               mainTypeName = mainTypeName,
-               methodName = method
-            });
-         }
+         //}
       }
 
       public void OnMainThreadExit(int appDomainId, bool cleanExit) {
@@ -196,6 +198,10 @@ namespace SimpleHostRuntime {
          // If so, we need to unload the domain to clean up what was left behind
 
          System.Diagnostics.Debug.WriteLine("Main thread exited from domain {0}, clean: {1}", appDomainId, cleanExit);
+      }
+
+      public void OnTooManyThreadsError(int appDomainId) {
+         domainPool.PostHostEvent(new HostEvent() { appDomainId = appDomainId, managedThreadId = Thread.CurrentThread.ManagedThreadId, requestType = HostEventType.OutOfTasks });
       }
 
       static Assembly domain_AssemblyResolve(object sender, ResolveEventArgs args) {

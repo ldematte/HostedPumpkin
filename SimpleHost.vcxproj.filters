@@ -158,5 +158,8 @@
     <ClInclude Include="AppDomainInfo.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Threading\CLRThread.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

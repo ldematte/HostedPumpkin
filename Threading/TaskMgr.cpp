@@ -118,7 +118,7 @@ STDMETHODIMP SHTaskManager::CreateTask(/* in */ DWORD dwStackSize, /* in */ LPTH
    }
    DWORD dwParentThreadId = ::GetCurrentThreadId();
    Logger::Debug("Created task for NEW thread %d - %x -- child of %d", dwThreadId, task, dwParentThreadId);
-   hostContext->OnThreadAcquire(dwParentThreadId, dwThreadId);
+   // hostContext->OnThreadAcquire(dwParentThreadId, dwThreadId);
 
    CrstLock crst(nativeThreadMapCrst);
    nativeThreadMap.insert(std::map<DWORD, IHostTask*>::value_type(dwThreadId, task));

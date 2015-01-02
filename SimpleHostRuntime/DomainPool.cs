@@ -16,6 +16,17 @@ namespace SimpleHostRuntime {
       public string methodName;
    }
 
+   public enum HostEventType {
+      OutOfTasks,
+      OutOfMemory
+   }
+
+   public class HostEvent {
+      public HostEventType requestType;
+      public int appDomainId;
+      public int managedThreadId;
+   }
+
    public class PooledDomainData {
       // TODO: prop
       public long timeOfSubmission;
@@ -37,10 +48,12 @@ namespace SimpleHostRuntime {
       PooledDomainData[] poolDomains = new PooledDomainData[NumberOfDomainsInPool];
 
       static object timeoutAbortToken = new object();
+      static object threadsExaustedAbortToken = new object();
 
       Thread watchdogThread;
 
       BlockingCollection<SnippetInfo> snippetsQueue = new BlockingCollection<SnippetInfo>();
+      BlockingCollection<HostEvent> hostEventsQueue = new BlockingCollection<HostEvent>();
 
       bool isExiting = false;
 
@@ -77,6 +90,20 @@ namespace SimpleHostRuntime {
          }
       }
 
+      public void PostHostEvent(HostEvent hostEvent) {
+         hostEventsQueue.Add(hostEvent);
+      }
+
+      private PooledDomainData FindByAppDomainId(int appDomainId) {
+         lock (poolLock) {
+            for (int i = 0; i < NumberOfDomainsInPool; ++i) {
+               if (poolDomains[i].domainId == appDomainId)
+                  return poolDomains[i];
+            }
+            return null;
+         }
+      }
+
       private void WatchdogThreadFunc() {
 
          while (!isExiting) {
@@ -87,7 +114,22 @@ namespace SimpleHostRuntime {
 
             // We sleep for a while, than check 
             try {
-               Thread.Sleep(1000);
+               //Thread.Sleep(1000);
+               HostEvent hostEvent = null;
+               if (hostEventsQueue.TryTake(out hostEvent, 1000)) {
+                  if (hostEvent != null) {
+                     System.Diagnostics.Debug.WriteLine("Watchdog: message from host for AppDomain " + hostEvent.appDomainId);
+                     // Process event
+                     switch (hostEvent.requestType) {
+                        case HostEventType.OutOfTasks: {
+                              PooledDomainData poolDomain = FindByAppDomainId(hostEvent.appDomainId);
+                              if (poolDomain != null)
+                                 poolDomain.mainThread.Abort(threadsExaustedAbortToken);
+                           }
+                           break;
+                     }
+                  }
+               }
 
                long currentTime = GetTimestamp();
                System.Diagnostics.Debug.WriteLine("Watchdog: check at " + currentTime);
@@ -113,24 +155,28 @@ namespace SimpleHostRuntime {
                            // Avoid to call Abort twice
                            Thread.VolatileWrite(ref poolDomains[i].timeOfSubmission, 0);
                            poolDomains[i].mainThread.Abort(timeoutAbortToken);
-
-                           // TODO: check also for appDomain.MonitoringTotalProcessorTime?
                         }
+                        // Check also for appDomain.MonitoringTotalProcessorTime
+                        //else if (poolDomains[i].appDomain.MonitoringTotalProcessorTime > MaxCpuTime)
+                        //   //TODO
+                        //}
                      }
 
                      // If our thread was aborted rudely, we need to create a new one
                      if (poolDomain.mainThread == null || poolDomain.mainThread.ThreadState == System.Threading.ThreadState.Aborted) {
                         defaultDomainManager.HostUnloadDomain(poolDomain.domainId);
                         poolDomains[i] = new PooledDomainData();
-                        CreateDomainThread(i);
+                        var thread = CreateDomainThread(i);
+                        thread.Start();
                      }
                   }
                }
 
-               // Ensure there is at least a thread in the domain
+               // Ensure there is at least a thread in the pool
                if (numberOfThreadsInPool < 1) {
                   poolDomains[0] = new PooledDomainData();
-                  CreateDomainThread(0);
+                  var thread = CreateDomainThread(0);
+                  thread.Start();
                }
             }
             catch (ThreadInterruptedException) {
@@ -152,16 +198,20 @@ namespace SimpleHostRuntime {
       private void RecycleDomain(int index) {
          if (MaxZombies > 0 && defaultDomainManager.GetNumberOfZombies() > MaxZombies) {
             // TODO: break connection, signal our "partner"/ monitor we are going down
+            System.Diagnostics.Debug.WriteLine("RecycleDomain - escalate to process recycling");
             this.Exit();
          }
          else {
             // We are saying "goodbye". Decrement the number of threads in the pool                        
             Interlocked.Decrement(ref numberOfThreadsInPool);
+            int domainId = 0;
             lock (poolLock) {
+               domainId = poolDomains[index].domainId;
                poolDomains[index] = null;
             }
             try {
-               AppDomain.Unload(AppDomain.CurrentDomain);               
+               defaultDomainManager.HostUnloadDomain(domainId);
+               System.Diagnostics.Debug.WriteLine("RecycleDomain - Domain " + domainId + " unload");
             }
             catch (CannotUnloadAppDomainException ex) {
                System.Diagnostics.Debug.WriteLine("RecycleDomain - CannotUnloadAppDomainException: ");
@@ -178,6 +228,7 @@ namespace SimpleHostRuntime {
       }
 
       private Thread CreateDomainThread(int threadIndex) {
+         System.Diagnostics.Debug.WriteLine("CreateDomainThread: " + threadIndex);
 
          var myPoolDomain = poolDomains[threadIndex];
                  
@@ -232,25 +283,25 @@ namespace SimpleHostRuntime {
                      }
                      catch (ThreadAbortException ex) {
                         // Someone called abort on us. 
+                        result.exception = ex;
+                        // Give us time to record the result; if needed, we will recycle (unload) the domain later
+                        Thread.ResetAbort();
+
                         // It may be possible to use this domain again, otherwise we will recycle
                         if (ex.ExceptionState == timeoutAbortToken) {
                            // The abort was issued by us because we timed out
                            System.Diagnostics.Debug.WriteLine("Thread Abort due to timeout");
-                           // Set exit status
-                           result.status = SnippetStatus.Timeout;
-                           result.exception = ex;
-
-                           System.Diagnostics.Debug.WriteLine("Reset and try to reuse this thread/AppDomain");
-                           Thread.ResetAbort();
+                           result.status = SnippetStatus.Timeout;                           
+                        }
+                        else if (ex.ExceptionState == threadsExaustedAbortToken) {
+                           System.Diagnostics.Debug.WriteLine("Thread Abort due to thread exaustion");
+                           result.status = SnippetStatus.ResourceError;
                         }
                         else {
                            // If it wasn't us, give us time to record the result; we will recycle (unload) the domain
                            System.Diagnostics.Debug.WriteLine("Thread Abort due to external factors");
                            result.status = SnippetStatus.CriticalError;
-                           result.exception = ex;
                            recycleDomain = true;
-                          
-                           Thread.ResetAbort();
                         }
                      }
                      catch (Exception ex) {
@@ -278,7 +329,7 @@ namespace SimpleHostRuntime {
                      // for us
                      // TODO: check that AppDomain.DomainUnload is called anyway!
 
-                     result.executionTime = GetTimestamp() - myPoolDomain.timeOfSubmission;
+                     result.executionTime = GetTimestamp() - Thread.VolatileRead(ref myPoolDomain.timeOfSubmission);
 
                      // Before looping, check if we are OK; we reuse the domain only if we are not leaking
                      int threadsInDomain = defaultDomainManager.GetThreadCount(appDomain.Id);
