@@ -30,8 +30,10 @@ private:
    ISimpleHostDomainManager* defaultDomainManager;
    DWORD defaultDomainId;
 
+   ICLRRuntimeHost* runtimeHost;
+
 public:
-   HostContext();
+   HostContext(ICLRRuntimeHost* runtimeHost);
    virtual ~HostContext();
 
    // IUnknown functions
@@ -52,6 +54,8 @@ public:
       /*[out,retval]*/ long * pRetVal);
 
    virtual STDMETHODIMP raw_ResetCountersForAppDomain(/*[in]*/long appDomainId);
+
+   virtual STDMETHODIMP raw_UnloadDomain(/*[in]*/long appDomainId);
    
 
    void OnDomainUnload(DWORD domainId);

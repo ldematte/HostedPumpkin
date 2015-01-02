@@ -12,7 +12,9 @@
 #include <corerror.h>
 
 
-HostContext::HostContext() {
+HostContext::HostContext(ICLRRuntimeHost* runtimeHost) {
+   this->runtimeHost = runtimeHost;
+
    m_cRef = 0;
 
    defaultDomainManager = NULL;
@@ -109,6 +111,21 @@ STDMETHODIMP HostContext::raw_ResetCountersForAppDomain(/*[in]*/long appDomainId
       appDomainInfo->second.threadsInAppDomain = 1;
    }
    return S_OK;
+}
+
+STDMETHODIMP HostContext::raw_UnloadDomain(/*[in]*/long appDomainId) {
+   // Alternative: ask the managed manager to do it (unload its domain)
+   //auto appDomainInfo = appDomains.find(appDomainId);
+   //if (appDomainInfo == appDomains.end()) {
+   //   Logger::Error("Cannot find AppDomain %d!", appDomainId);
+   //   return E_INVALIDARG;
+   //}
+   //else {
+   //   ISimpleHostDomainManager* domain = appDomainInfo->second.appDomainManager;
+   //   domain->Unload();
+   //}
+   
+   return runtimeHost->UnloadAppDomain(appDomainId, false);
 }
 
 

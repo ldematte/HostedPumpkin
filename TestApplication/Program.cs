@@ -68,9 +68,10 @@ namespace TestApplication {
             Fork();
          });
          t.Start();
+         t.Join();
       }
       public static void SnippetTest7() {
-         Fork();
+         Fork();         
       }
 
       //- create a thread per CPU, set the priority to realtime, and try to clog it

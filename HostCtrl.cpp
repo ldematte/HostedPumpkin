@@ -23,10 +23,10 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
       Logger::Critical("Failed to obtain a CLR Control object");
    }
 
-   hostContext = new HostContext();
+   hostContext = new HostContext(m_pRuntimeHost);
    if (!hostContext) {
       Logger::Critical("Unable to allocate Host Context");
-   }
+   }  
 
    taskManager = new SHTaskManager(hostContext);
    syncManager = new SHSyncManager();

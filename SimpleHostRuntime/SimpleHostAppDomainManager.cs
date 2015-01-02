@@ -46,6 +46,7 @@ namespace SimpleHostRuntime {
       int GetMemoryUsage(int appDomainId);
       int GetNumberOfZombies();
       void ResetCountersForAppDomain(int appDomainId);
+      void UnloadDomain(int appDomainId);
    }
 
    [ComVisible(true), Guid("A603EC84-3449-47B9-BCF5-391C628067D6")]
@@ -161,29 +162,30 @@ namespace SimpleHostRuntime {
          byte[] rawAssembly = System.IO.File.ReadAllBytes(assemblyFileName);
          var assembly = Assembly.ReflectionOnlyLoad(rawAssembly);
 
-         var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
-               .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                  .Where(m => m.Name.StartsWith("SnippetTest23"))
-                  .Select(m => m.Name)
-                  .Single();
+         //Run a single test
+         //var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
+         //      .GetMethods(BindingFlags.Public | BindingFlags.Static)
+         //         .Where(m => m.Name.StartsWith("SnippetTest23"))
+         //         .Select(m => m.Name)
+         //         .Single();
 
-         domainPool.SubmitSnippet(new SnippetInfo() {
-               assemblyFile = rawAssembly,
-               mainTypeName = mainTypeName,
-               methodName = method
-            });
-
-         //var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
-         //   .Where(m => m.Name.StartsWith(methodNamePrefix))
-         //   .Select(m => m.Name);
-         //
-         //foreach (var method in methods) {
-         //   domainPool.SubmitSnippet(new SnippetInfo() {
+         //domainPool.SubmitSnippet(new SnippetInfo() {
          //      assemblyFile = rawAssembly,
          //      mainTypeName = mainTypeName,
          //      methodName = method
          //   });
-         //}
+
+         var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
+            .Where(m => m.Name.StartsWith(methodNamePrefix))
+            .Select(m => m.Name);
+
+         foreach (var method in methods) {
+            domainPool.SubmitSnippet(new SnippetInfo() {
+               assemblyFile = rawAssembly,
+               mainTypeName = mainTypeName,
+               methodName = method
+            });
+         }
       }
 
       public void OnMainThreadExit(int appDomainId, bool cleanExit) {
@@ -314,6 +316,10 @@ namespace SimpleHostRuntime {
 
       internal int GetMemoryUsage(int appDomainId) {
          return hostContext.GetMemoryUsage(appDomainId);
+      }
+
+      internal void HostUnloadDomain(int appDomainId) {
+         hostContext.UnloadDomain(appDomainId);
       }
    }
 }

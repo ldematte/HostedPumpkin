@@ -117,7 +117,20 @@ namespace SimpleHostRuntime {
                            // TODO: check also for appDomain.MonitoringTotalProcessorTime?
                         }
                      }
+
+                     // If our thread was aborted rudely, we need to create a new one
+                     if (poolDomain.mainThread == null || poolDomain.mainThread.ThreadState == System.Threading.ThreadState.Aborted) {
+                        defaultDomainManager.HostUnloadDomain(poolDomain.domainId);
+                        poolDomains[i] = new PooledDomainData();
+                        CreateDomainThread(i);
+                     }
                   }
+               }
+
+               // Ensure there is at least a thread in the domain
+               if (numberOfThreadsInPool < 1) {
+                  poolDomains[0] = new PooledDomainData();
+                  CreateDomainThread(0);
                }
             }
             catch (ThreadInterruptedException) {
@@ -137,19 +150,18 @@ namespace SimpleHostRuntime {
       private long numberOfThreadsInPool = 0;
 
       private void RecycleDomain(int index) {
-         lock (poolLock) {
-            poolDomains[index] = null;
-         }
-
          if (MaxZombies > 0 && defaultDomainManager.GetNumberOfZombies() > MaxZombies) {
             // TODO: break connection, signal our "partner"/ monitor we are going down
             this.Exit();
          }
          else {
+            // We are saying "goodbye". Decrement the number of threads in the pool                        
+            Interlocked.Decrement(ref numberOfThreadsInPool);
+            lock (poolLock) {
+               poolDomains[index] = null;
+            }
             try {
-               AppDomain.Unload(AppDomain.CurrentDomain);
-               // We are saying "goodbye". Decrement the number of threads in the pool                        
-               Interlocked.Decrement(ref numberOfThreadsInPool);
+               AppDomain.Unload(AppDomain.CurrentDomain);               
             }
             catch (CannotUnloadAppDomainException ex) {
                System.Diagnostics.Debug.WriteLine("RecycleDomain - CannotUnloadAppDomainException: ");
