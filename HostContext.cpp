@@ -11,6 +11,7 @@
 #include <mscoree.h>
 #include <corerror.h>
 
+static LPCWSTR HostSignalEventName = L"31FDFE09-22AA-42B7-AF72-048734C5C394";
 
 HostContext::HostContext(ICLRRuntimeHost* runtimeHost) {
    this->runtimeHost = runtimeHost;
@@ -19,18 +20,33 @@ HostContext::HostContext(ICLRRuntimeHost* runtimeHost) {
 
    defaultDomainManager = NULL;
    defaultDomainId = 1; 
-   domainMapCrst = new CRITICAL_SECTION;
 
    numZombieDomains = 0;
 
+   // Create the event for sinchronization of our "message queue" with the 
+   // managed part
+   hMessageEvent = ::CreateEvent(NULL, TRUE, FALSE, NULL);
+   if (hMessageEvent == NULL)
+      Logger::Critical("CreateEvent error: %d", GetLastError());
+
+   domainMapCrst = new CRITICAL_SECTION;
    if (!domainMapCrst)
       Logger::Critical("Failed to allocate critical sections");
-
    InitializeCriticalSection(domainMapCrst);
+
+   messageQueueCrst = new CRITICAL_SECTION;
+   if (!messageQueueCrst)
+      Logger::Critical("Failed to allocate critical sections");
+   InitializeCriticalSection(messageQueueCrst);
 }
 
 HostContext::~HostContext() {
-   if (domainMapCrst) DeleteCriticalSection(domainMapCrst);
+   if (domainMapCrst) 
+      DeleteCriticalSection(domainMapCrst);
+   if (messageQueueCrst)
+      DeleteCriticalSection(messageQueueCrst);
+   if (hMessageEvent)
+      CloseHandle(hMessageEvent);
 }
 
 // IUnknown functions
@@ -128,6 +144,57 @@ STDMETHODIMP HostContext::raw_UnloadDomain(/*[in]*/long appDomainId) {
    return runtimeHost->UnloadAppDomain(appDomainId, false);
 }
 
+STDMETHODIMP HostContext::raw_GetLastMessage(/*[in]*/ long dwMilliseconds,  
+                                             /*[out]*/ HostEvent* hostEvent,  
+                                             /*[out,retval]*/ VARIANT_BOOL* eventPresent) {
+
+   DWORD dwResult = WaitForSingleObject(hMessageEvent, dwMilliseconds);
+
+   if (dwResult == WAIT_OBJECT_0) {
+      CrstLock(this->messageQueueCrst);
+
+      *hostEvent = messageQueue.back();
+      messageQueue.pop_back();
+
+      if (messageQueue.empty())
+         ResetEvent(hMessageEvent);
+
+      *eventPresent = VARIANT_TRUE;
+      return S_OK;
+   }
+   else if (dwResult == WAIT_TIMEOUT) {
+      *eventPresent = VARIANT_FALSE;
+      return S_OK;
+   }
+   else {
+      return HRESULT_FROM_WIN32(GetLastError());
+   }
+}
+
+// WARNING/ATTENTION PLEASE: we have to use a "windows-style" message system here because
+// 1) we do not want to call back using the same thread (the calling
+// thread might be dying/unable to survive for long)
+// 2) the calling thread might be in a position where it should NOT call
+// back into managed code directly (cfr. our previous approach using 
+// defaultDomainManager->PostMessage which directly inserted the message in a 
+// BlockingCollection. The message was read and dispatched in a different thread,
+// BUT it required a unmanaged - managed transition)
+// For example, inside critical methods (like CreateTask), the CLR cannot do 
+// a proper unmanager-managed transition, raising a MDA error (http://msdn.microsoft.com/en-us/library/d21c150d%28v=vs.110%29.aspx)
+// Specifically, a reentrancy error (http://msdn.microsoft.com/en-us/library/ms172237%28v=vs.110%29.aspx)
+// The MDA has no effect per-se, but ignoring it can lead to serious error (stack/heap corruption)
+void HostContext::PostHostMessage(long eventType, long appDomainId, long managedThreadId) {
+   HostEvent lastMessage;
+   lastMessage.eventType = eventType;
+   lastMessage.appDomainId = appDomainId;
+   lastMessage.managedThreadId = managedThreadId;
+
+   CrstLock(this->messageQueueCrst);
+   messageQueue.push_back(lastMessage);
+   SetEvent(hMessageEvent);
+}
+
+
 
 void HostContext::OnDomainUnload(DWORD domainId) {
 
@@ -177,6 +244,23 @@ ISimpleHostDomainManager* HostContext::GetDomainManagerForDefaultDomain() {
    return defaultDomainManager;
 }
 
+bool HostContext::OnThreadAcquiring(DWORD dwParentThreadId) {
+   CrstLock(this->domainMapCrst);
+   auto parentThreadDomain = threadAppDomain.find(dwParentThreadId);
+   if (parentThreadDomain == threadAppDomain.end())
+      return false;
+
+   DWORD appDomainId = parentThreadDomain->second;
+   AppDomainInfo& domainInfo = appDomains.at(appDomainId);
+
+   if (domainInfo.threadsInAppDomain >= MAX_THREAD_PER_DOMAIN) {
+      // Signal that we have something to signal :)
+      PostHostMessage(HostEventType_OutOfTasks, appDomainId, 0);
+      return false;      
+   }
+   return true;
+}
+
 bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
 
    CrstLock(this->domainMapCrst);
@@ -188,9 +272,7 @@ bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
       ++(domainInfo.threadsInAppDomain);
       threadAppDomain.insert(std::make_pair(dwThreadId, parentThreadDomain->second));
 
-      if (domainInfo.threadsInAppDomain > MAX_THREAD_PER_DOMAIN) {
-         defaultDomainManager->OnTooManyThreadsError(appDomainId);
-      }
+      
 
 #ifdef TRACK_THREAD_RELATIONSHIP
       childThreadToParent.insert(std::make_pair(dwThreadId, dwParentThreadId));

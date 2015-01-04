@@ -181,18 +181,16 @@ int main(int argc, char* argv [])
       clrHostProtectionManager->Release();
    }
 
-   // Associate our domain manager
    std::list<AssemblyInfo> hostAssemblies;
    std::wstring currentDir = CurrentDirectory();
    AssemblyInfo appDomainManager(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\SimpleHostRuntime.dll", L"");
    hostAssemblies.push_back(appDomainManager);
 
-   clrControl->SetAppDomainManagerType(appDomainManager.FullName.c_str(), L"SimpleHostRuntime.SimpleHostAppDomainManager");
-
-
-
    // Construct our host control object.
    DHHostControl* hostControl = new DHHostControl(clr, hostAssemblies);
+
+   // Associate our domain manager
+   clrControl->SetAppDomainManagerType(appDomainManager.FullName.c_str(), L"SimpleHostRuntime.SimpleHostAppDomainManager");
    clr->SetHostControl(hostControl);
 
    // Start the CLR.

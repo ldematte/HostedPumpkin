@@ -16,17 +16,6 @@ namespace SimpleHostRuntime {
       public string methodName;
    }
 
-   public enum HostEventType {
-      OutOfTasks,
-      OutOfMemory
-   }
-
-   public class HostEvent {
-      public HostEventType requestType;
-      public int appDomainId;
-      public int managedThreadId;
-   }
-
    public class PooledDomainData {
       // TODO: prop
       public long timeOfSubmission;
@@ -51,9 +40,7 @@ namespace SimpleHostRuntime {
       static object threadsExaustedAbortToken = new object();
 
       Thread watchdogThread;
-
       BlockingCollection<SnippetInfo> snippetsQueue = new BlockingCollection<SnippetInfo>();
-      BlockingCollection<HostEvent> hostEventsQueue = new BlockingCollection<HostEvent>();
 
       bool isExiting = false;
 
@@ -90,9 +77,6 @@ namespace SimpleHostRuntime {
          }
       }
 
-      public void PostHostEvent(HostEvent hostEvent) {
-         hostEventsQueue.Add(hostEvent);
-      }
 
       private PooledDomainData FindByAppDomainId(int appDomainId) {
          lock (poolLock) {
@@ -115,20 +99,18 @@ namespace SimpleHostRuntime {
             // We sleep for a while, than check 
             try {
                //Thread.Sleep(1000);
-               HostEvent hostEvent = null;
-               if (hostEventsQueue.TryTake(out hostEvent, 1000)) {
-                  if (hostEvent != null) {
-                     System.Diagnostics.Debug.WriteLine("Watchdog: message from host for AppDomain " + hostEvent.appDomainId);
-                     // Process event
-                     switch (hostEvent.requestType) {
-                        case HostEventType.OutOfTasks: {
-                              PooledDomainData poolDomain = FindByAppDomainId(hostEvent.appDomainId);
-                              if (poolDomain != null)
-                                 poolDomain.mainThread.Abort(threadsExaustedAbortToken);
-                           }
-                           break;
-                     }
-                  }
+               HostEvent hostEvent;
+               if (defaultDomainManager.GetHostMessage(1000, out hostEvent)) {
+                  System.Diagnostics.Debug.WriteLine("Watchdog: message from host for AppDomain " + hostEvent.appDomainId);
+                  // Process event
+                  switch ((HostEventType)hostEvent.eventType) {
+                     case HostEventType.OutOfTasks: {
+                           PooledDomainData poolDomain = FindByAppDomainId(hostEvent.appDomainId);
+                           if (poolDomain != null)
+                              poolDomain.mainThread.Abort(threadsExaustedAbortToken);
+                        }
+                        break;
+                  }                  
                }
 
                long currentTime = GetTimestamp();

@@ -5,6 +5,7 @@
 #include "Common.h"
 
 #include <map>
+#include <vector>
 
 #import "SimpleHostRuntime.tlb" no_namespace named_guids
 
@@ -34,6 +35,11 @@ private:
 
    ICLRRuntimeHost* runtimeHost;
 
+   // Our "windows-style" message queue
+   std::vector<HostEvent> messageQueue;
+   LPCRITICAL_SECTION messageQueueCrst;
+   HANDLE hMessageEvent;
+
 public:
    HostContext(ICLRRuntimeHost* runtimeHost);
    virtual ~HostContext();
@@ -58,7 +64,10 @@ public:
    virtual STDMETHODIMP raw_ResetCountersForAppDomain(/*[in]*/long appDomainId);
 
    virtual STDMETHODIMP raw_UnloadDomain(/*[in]*/long appDomainId);
-   
+
+   virtual STDMETHODIMP raw_GetLastMessage(/*[in]*/ long dwMilliseconds,  /*[out]*/ HostEvent* hostEvent,  /*[out,retval]*/ VARIANT_BOOL* eventPresent);
+
+   void PostHostMessage(long eventType, long appDomainId, long managedThreadId);
 
    void OnDomainUnload(DWORD domainId);
    void OnDomainRudeUnload();
@@ -66,6 +75,7 @@ public:
    ISimpleHostDomainManager* GetDomainManagerForDefaultDomain();
 
    // Notifies that the managed code "got hold" (created, got from a pool) of a new thread   
+   bool OnThreadAcquiring(DWORD dwParentThreadId);
    bool OnThreadAcquire(DWORD dwParentThreadId, DWORD dwNewThreadId);
    bool OnThreadRelease(DWORD dwThreadId);
 

@@ -40,6 +40,20 @@ namespace SimpleHostRuntime {
       public long executionTime;
    }
 
+   [ComVisible(true), Guid("59D0437C-7AF2-4CCE-9104-E39970D739D6")]
+   public enum HostEventType {
+      None = 0,
+      OutOfTasks = 1,
+      OutOfMemory = 2
+   }
+
+   [ComVisible(true), Guid("057732A2-6120-40B9-A65E-9B045A1C0CBB")]
+   public struct HostEvent {
+      public int eventType; //HostEventType
+      public int appDomainId;
+      public int managedThreadId;
+   }
+
    [ComVisible(true), Guid("2AF95991-AF3E-4192-B1AC-8FD254E087F3")]
    [InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
    public interface IHostContext {
@@ -48,6 +62,8 @@ namespace SimpleHostRuntime {
       int GetNumberOfZombies();
       void ResetCountersForAppDomain(int appDomainId);
       void UnloadDomain(int appDomainId);
+
+      bool GetLastMessage(int millisecondsTimeout, out HostEvent hostEvent);
    }
 
    [ComVisible(true), Guid("A603EC84-3449-47B9-BCF5-391C628067D6")]
@@ -61,7 +77,6 @@ namespace SimpleHostRuntime {
       void RunTests(string assemblyFileName, string mainTypeName, string methodNamePrefix);
 
       void OnMainThreadExit(int appDomainId, bool cleanExit);
-      void OnTooManyThreadsError(int appDomainId);
    }
 
    [ComVisible(true), Guid("3D4364E5-790F-4F34-A655-EFB05A40BA07"),
@@ -80,7 +95,7 @@ namespace SimpleHostRuntime {
       public event Action<int> DomainUnload;
       public event Action<int, Exception> FirstChanceException;
       public event Action<int, Object> UnhandledException;
-       
+ 
       public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
 
          // From MSDN "The default InitializeNewDomain implementation does nothing"
@@ -101,30 +116,28 @@ namespace SimpleHostRuntime {
 
          //if (AppDomain.CurrentDomain.IsDefaultAppDomain()) {
 
-            new ReflectionPermission(PermissionState.Unrestricted).Assert();
+         new ReflectionPermission(PermissionState.Unrestricted).Assert();            
 
-            
+         AppDomain.CurrentDomain.AssemblyResolve += domain_AssemblyResolve;
+         AppDomain.CurrentDomain.AssemblyLoad += domain_AssemblyLoad;
 
-            AppDomain.CurrentDomain.AssemblyResolve += domain_AssemblyResolve;
-            AppDomain.CurrentDomain.AssemblyLoad += domain_AssemblyLoad;
+         AppDomain.CurrentDomain.DomainUnload += (sender, e) => {
+            OnDomainUnload(currentDomainId);
+         };
+         //AppDomain.CurrentDomain.FirstChanceException += (sender, e) => {
+         //   OnFirstChanceException(currentDomainId, e.Exception);
+         //};
+         AppDomain.CurrentDomain.UnhandledException += (sender, e) => {
+            OnUnhandledException(currentDomainId, e.ExceptionObject);
+         };
 
-            AppDomain.CurrentDomain.DomainUnload += (sender, e) => {
-               OnDomainUnload(currentDomainId);
-            };
-            //AppDomain.CurrentDomain.FirstChanceException += (sender, e) => {
-            //   OnFirstChanceException(currentDomainId, e.Exception);
-            //};
-            AppDomain.CurrentDomain.UnhandledException += (sender, e) => {
-               OnUnhandledException(currentDomainId, e.ExceptionObject);
-            };
-
-            ReflectionPermission.RevertAssert();
-         //}
+         ReflectionPermission.RevertAssert();
+         
 
          // REVIEW: the assumption, for now, is that the thread that creates the AppDomain is the
          // "main" thread, the one that will execute the snippet. 
          // IF THIS CHANGES, there will be the need to review this bit
-            mainThreadManagedId = Thread.CurrentThread.ManagedThreadId;
+         mainThreadManagedId = Thread.CurrentThread.ManagedThreadId;
       }
 
       void OnDomainUnload(int domainId) {
@@ -149,8 +162,8 @@ namespace SimpleHostRuntime {
          Debug.Assert(domainPool == null);
          SimpleHostAppDomainManager.hostContext = hostContext;
          SimpleHostAppDomainManager.domainPool = new DomainPool(this);         
-      }      
-
+      }     
+ 
       public void RunSnippet(string assemblyFileName, string mainTypeName, string methodName) {
          domainPool.SubmitSnippet(new SnippetInfo() {
             assemblyFile = System.IO.File.ReadAllBytes(assemblyFileName),
@@ -190,6 +203,10 @@ namespace SimpleHostRuntime {
          //}
       }
 
+      internal bool GetHostMessage(int millisecondsTimeout, out HostEvent hostEvent) {
+         return hostContext.GetLastMessage(millisecondsTimeout, out hostEvent);
+      }
+
       public void OnMainThreadExit(int appDomainId, bool cleanExit) {
          // This is one alternative: we let the main thread exit, and we check if it exited cleanly.
          // This puts (asks) more control in the hands of the Host
@@ -198,10 +215,6 @@ namespace SimpleHostRuntime {
          // If so, we need to unload the domain to clean up what was left behind
 
          System.Diagnostics.Debug.WriteLine("Main thread exited from domain {0}, clean: {1}", appDomainId, cleanExit);
-      }
-
-      public void OnTooManyThreadsError(int appDomainId) {
-         domainPool.PostHostEvent(new HostEvent() { appDomainId = appDomainId, managedThreadId = Thread.CurrentThread.ManagedThreadId, requestType = HostEventType.OutOfTasks });
       }
 
       static Assembly domain_AssemblyResolve(object sender, ResolveEventArgs args) {
