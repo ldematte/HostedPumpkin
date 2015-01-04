@@ -329,8 +329,9 @@ namespace SimpleHostRuntime {
          return hostContext.GetNumberOfZombies();
       }
 
-      internal void ResetContextFor(int appDomainId) {
-         hostContext.ResetCountersForAppDomain(appDomainId);
+      internal void ResetContextFor(PooledDomainData domainData) {
+         domainData.isAborting = 0;
+         hostContext.ResetCountersForAppDomain(domainData.domainId);
       }
 
       internal int GetMemoryUsage(int appDomainId) {

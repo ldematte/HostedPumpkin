@@ -184,14 +184,27 @@ STDMETHODIMP HostContext::raw_GetLastMessage(/*[in]*/ long dwMilliseconds,
 // Specifically, a reentrancy error (http://msdn.microsoft.com/en-us/library/ms172237%28v=vs.110%29.aspx)
 // The MDA has no effect per-se, but ignoring it can lead to serious error (stack/heap corruption)
 void HostContext::PostHostMessage(long eventType, long appDomainId, long managedThreadId) {
-   HostEvent lastMessage;
-   lastMessage.eventType = eventType;
-   lastMessage.appDomainId = appDomainId;
-   lastMessage.managedThreadId = managedThreadId;
+   {
+      CrstLock(this->messageQueueCrst);
 
-   CrstLock(this->messageQueueCrst);
-   messageQueue.push_back(lastMessage);
-   SetEvent(hMessageEvent);
+      bool eventAlreadyInserted = false;
+      for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) { // reverse is more efficient
+         if (it->appDomainId == appDomainId && it->eventType == eventType) {
+            eventAlreadyInserted = true;
+            break;
+         }
+      }
+
+      if (!eventAlreadyInserted) {
+         HostEvent lastMessage;
+         lastMessage.eventType = eventType;
+         lastMessage.appDomainId = appDomainId;
+         lastMessage.managedThreadId = managedThreadId;
+
+         messageQueue.push_back(lastMessage);
+      }
+      SetEvent(hMessageEvent);
+   }
 }
 
 
@@ -199,12 +212,25 @@ void HostContext::PostHostMessage(long eventType, long appDomainId, long managed
 void HostContext::OnDomainUnload(DWORD domainId) {
 
    Logger::Debug("In HostContext::OnDomainUnload %d", domainId);
-   CrstLock(this->domainMapCrst);
-   auto domainIt = appDomains.find(domainId);
-   if (domainIt != appDomains.end()) {
-      appDomains.erase(domainIt);
+   {
+      CrstLock(this->messageQueueCrst);
+      auto it = messageQueue.begin(); 
+      while (it != messageQueue.end()) {
+         if ((DWORD)it->appDomainId == domainId) {
+            it = messageQueue.erase(it);
+         }
+         else {
+            ++it;
+         }
+      }
    }
-
+   {
+      CrstLock(this->domainMapCrst);
+      auto domainIt = appDomains.find(domainId);
+      if (domainIt != appDomains.end()) {
+         appDomains.erase(domainIt);
+      }
+   }
 }
 
 void HostContext::OnDomainRudeUnload() {

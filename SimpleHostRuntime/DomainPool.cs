@@ -22,11 +22,12 @@ namespace SimpleHostRuntime {
       public int domainId;
       public Thread mainThread;
       public int numberOfUsages;
+      public int isAborting;
    }
 
    public class DomainPool {
 
-      const int MaxReuse = 0; // How many times we want to reuse an AppDomain? (0 = infinite)
+      const int MaxReuse = 100; // How many times we want to reuse an AppDomain? (0 = infinite)
       const int MaxZombies = 20; // How many "zombie" (potentially undead/leaking domains) we tolerate? (0 = infinite)
       const int NumberOfDomainsInPool = 1;
       const int runningThreshold = 3 * 1000; // In milliseconds
@@ -36,8 +37,8 @@ namespace SimpleHostRuntime {
       object poolLock = new object();
       PooledDomainData[] poolDomains = new PooledDomainData[NumberOfDomainsInPool];
 
-      static object timeoutAbortToken = new object();
-      static object threadsExaustedAbortToken = new object();
+      static string threadsExaustedAbortToken = "AbortTooManyThreads";
+      static string timeoutAbortToken = "AbortTimeout";
 
       Thread watchdogThread;
       BlockingCollection<SnippetInfo> snippetsQueue = new BlockingCollection<SnippetInfo>();
@@ -81,7 +82,7 @@ namespace SimpleHostRuntime {
       private PooledDomainData FindByAppDomainId(int appDomainId) {
          lock (poolLock) {
             for (int i = 0; i < NumberOfDomainsInPool; ++i) {
-               if (poolDomains[i].domainId == appDomainId)
+               if (poolDomains[i] != null && poolDomains[i].domainId == appDomainId)
                   return poolDomains[i];
             }
             return null;
@@ -106,50 +107,54 @@ namespace SimpleHostRuntime {
                   switch ((HostEventType)hostEvent.eventType) {
                      case HostEventType.OutOfTasks: {
                            PooledDomainData poolDomain = FindByAppDomainId(hostEvent.appDomainId);
-                           if (poolDomain != null)
-                              poolDomain.mainThread.Abort(threadsExaustedAbortToken);
+                           if (poolDomain != null) {
+                              if (Interlocked.CompareExchange(ref poolDomain.isAborting, 1, 0) == 0) {
+                                 poolDomain.mainThread.Abort(threadsExaustedAbortToken);
+                              }
+                           }
                         }
                         break;
-                  }                  
-               }
-
-               long currentTime = GetTimestamp();
-               System.Diagnostics.Debug.WriteLine("Watchdog: check at " + currentTime);
-
-               for (int i = 0; i < NumberOfDomainsInPool; ++i) {
-                  // Something is running?
-                  PooledDomainData poolDomain = null;
-                  lock (poolLock) {
-                     poolDomain = poolDomains[i];
                   }
+               }
+               else {
+                  long currentTime = GetTimestamp();
+                  System.Diagnostics.Debug.WriteLine("Watchdog: check at " + currentTime);
 
-                  if (poolDomain != null) {
-                     long snippetStartTime = Thread.VolatileRead(ref poolDomain.timeOfSubmission);
-                     if (snippetStartTime > 0) {
-                        // For too long?
-                        long millisRunning = currentTime - snippetStartTime;
-                        if (millisRunning > runningThreshold) {
-                           // Abort Thread i / Unload domain i
-                           // Calling abort here is fine: the host will escalate it for us if it times
-                           // out. Otherwise, we can still catch it and reuse the AppDomain
-                           System.Diagnostics.Debug.WriteLine("Timeout: aborting thread #{0} in domain {1} ({2} ms)", i, poolDomains[i].domainId, millisRunning);
-
-                           // Avoid to call Abort twice
-                           Thread.VolatileWrite(ref poolDomains[i].timeOfSubmission, 0);
-                           poolDomains[i].mainThread.Abort(timeoutAbortToken);
-                        }
-                        // Check also for appDomain.MonitoringTotalProcessorTime
-                        //else if (poolDomains[i].appDomain.MonitoringTotalProcessorTime > MaxCpuTime)
-                        //   //TODO
-                        //}
+                  for (int i = 0; i < NumberOfDomainsInPool; ++i) {
+                     // Something is running?
+                     PooledDomainData poolDomain = null;
+                     lock (poolLock) {
+                        poolDomain = poolDomains[i];
                      }
 
-                     // If our thread was aborted rudely, we need to create a new one
-                     if (poolDomain.mainThread == null || poolDomain.mainThread.ThreadState == System.Threading.ThreadState.Aborted) {
-                        defaultDomainManager.HostUnloadDomain(poolDomain.domainId);
-                        poolDomains[i] = new PooledDomainData();
-                        var thread = CreateDomainThread(i);
-                        thread.Start();
+                     if (poolDomain != null) {
+                        long snippetStartTime = Thread.VolatileRead(ref poolDomain.timeOfSubmission);
+                        if (snippetStartTime > 0) {
+                           // For too long?
+                           long millisRunning = currentTime - snippetStartTime;
+                           if (millisRunning > runningThreshold) {
+                              // Abort Thread i / Unload domain i
+                              // Calling abort here is fine: the host will escalate it for us if it times
+                              // out. Otherwise, we can still catch it and reuse the AppDomain
+                              System.Diagnostics.Debug.WriteLine("Timeout: aborting thread #{0} in domain {1} ({2} ms)", i, poolDomains[i].domainId, millisRunning);
+
+                              // Avoid to call Abort twice
+                              Thread.VolatileWrite(ref poolDomains[i].timeOfSubmission, 0);
+                              poolDomains[i].mainThread.Abort(timeoutAbortToken);
+                           }
+                           // Check also for appDomain.MonitoringTotalProcessorTime
+                           //else if (poolDomains[i].appDomain.MonitoringTotalProcessorTime > MaxCpuTime)
+                           //   //TODO
+                           //}
+                        }
+
+                        // If our thread was aborted rudely, we need to create a new one
+                        if (poolDomain.mainThread == null || poolDomain.mainThread.ThreadState == System.Threading.ThreadState.Aborted) {
+                           defaultDomainManager.HostUnloadDomain(poolDomain.domainId);
+                           poolDomains[i] = new PooledDomainData();
+                           var thread = CreateDomainThread(i);
+                           thread.Start();
+                        }
                      }
                   }
                }
@@ -226,7 +231,7 @@ namespace SimpleHostRuntime {
                }
 
                while (!snippetsQueue.IsCompleted) {
-                  defaultDomainManager.ResetContextFor(myPoolDomain.domainId);
+                  defaultDomainManager.ResetContextFor(myPoolDomain);
 
                   // And here is were we "rent" one AppDomain and use it to run a snippet
                   SnippetInfo snippetToRun = null;
@@ -266,16 +271,14 @@ namespace SimpleHostRuntime {
                      catch (ThreadAbortException ex) {
                         // Someone called abort on us. 
                         result.exception = ex;
-                        // Give us time to record the result; if needed, we will recycle (unload) the domain later
-                        Thread.ResetAbort();
 
                         // It may be possible to use this domain again, otherwise we will recycle
-                        if (ex.ExceptionState == timeoutAbortToken) {
+                        if (Object.Equals(ex.ExceptionState, timeoutAbortToken)) {
                            // The abort was issued by us because we timed out
                            System.Diagnostics.Debug.WriteLine("Thread Abort due to timeout");
                            result.status = SnippetStatus.Timeout;                           
                         }
-                        else if (ex.ExceptionState == threadsExaustedAbortToken) {
+                        else if (Object.Equals(ex.ExceptionState, threadsExaustedAbortToken)) {
                            System.Diagnostics.Debug.WriteLine("Thread Abort due to thread exaustion");
                            result.status = SnippetStatus.ResourceError;
                         }
@@ -285,6 +288,9 @@ namespace SimpleHostRuntime {
                            result.status = SnippetStatus.CriticalError;
                            recycleDomain = true;
                         }
+
+                        // Give us time to record the result; if needed, we will recycle (unload) the domain later
+                        Thread.ResetAbort();
                      }
                      catch (Exception ex) {
                         result.exception = ex;

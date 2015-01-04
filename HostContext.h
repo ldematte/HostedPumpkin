@@ -5,7 +5,7 @@
 #include "Common.h"
 
 #include <map>
-#include <vector>
+#include <list>
 
 #import "SimpleHostRuntime.tlb" no_namespace named_guids
 
@@ -36,7 +36,7 @@ private:
    ICLRRuntimeHost* runtimeHost;
 
    // Our "windows-style" message queue
-   std::vector<HostEvent> messageQueue;
+   std::list<HostEvent> messageQueue;
    LPCRITICAL_SECTION messageQueueCrst;
    HANDLE hMessageEvent;
 

@@ -53,7 +53,7 @@ STDMETHODIMP SHCrst::QueryInterface(const IID &riid, void **ppvObject) {
 
 // IHostCrst functions
 
-STDMETHODIMP SHCrst::Enter(DWORD option) {
+STDMETHODIMP SHCrst::Enter(DWORD /*option*/) {
    //Logger::Info("In CriticalSection::Enter");
 
    // TODO: consider 'option' correctly.
@@ -72,7 +72,7 @@ STDMETHODIMP SHCrst::Leave() {
    return S_OK;
 }
 
-STDMETHODIMP SHCrst::TryEnter(DWORD option, BOOL *pbSucceeded) {
+STDMETHODIMP SHCrst::TryEnter(DWORD /*option*/, BOOL *pbSucceeded) {
    //Logger::Info("In CriticalSection::TryEnter");
 
    //TODO consider 'option' correctly.
