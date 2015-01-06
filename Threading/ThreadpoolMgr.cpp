@@ -4,8 +4,9 @@
 
 
 
-SHThreadpoolManager::SHThreadpoolManager() {
+SHThreadpoolManager::SHThreadpoolManager(HostContext* context) {
    m_cRef = 0;
+   hostContext = context;
 
    //Custom max number of threads
    maxThreads = 0;

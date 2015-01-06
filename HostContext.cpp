@@ -356,6 +356,72 @@ bool HostContext::OnThreadRelease(DWORD dwThreadId) {
    return false;
 }
 
+bool HostContext::OnMemoryAcquiring(DWORD dwThreadId, LONG bytes) {   
+   CrstLock(this->domainMapCrst);
+
+   // first of all, see if this is one our our snippet appdomains
+   auto appDomainId = threadAppDomain.find(dwThreadId);
+   if (appDomainId == threadAppDomain.end())
+      return true; // We don't know this thread. No problem, it probably is an internal CLR thread.
+
+   if (appDomainId->second == defaultDomainId) 
+      return true; // No problem, let the appdomain to its work
+
+   auto appDomainInfo = appDomains.find(appDomainId->second);
+   if (appDomainInfo != appDomains.end()) {
+      Logger::Debug("Requesting allocation in AppDomain %d, %d bytes", appDomainId->second, bytes);
+
+      if (appDomainInfo->second.bytesInAppDomain + bytes > MAX_BYTES_PER_DOMAIN)
+         return false;
+
+      if (appDomainInfo->second.allocsInAppDomain + 1 > MAX_ALLOCS_PER_DOMAIN)
+         return false;
+   }
+   return true;
+}
+
+void HostContext::OnMemoryAcquire(DWORD dwThreadId, LONG bytes, PVOID address) {
+   CrstLock(this->domainMapCrst);
+
+   auto appDomainId = threadAppDomain.find(dwThreadId);
+   if (appDomainId == threadAppDomain.end())
+      return;
+
+   if (appDomainId->second == defaultDomainId)
+      return;
+
+   auto appDomainInfo = appDomains.find(appDomainId->second);
+   if (appDomainInfo == appDomains.end())
+      return;
+
+   Logger::Debug("Tracking allocation in AppDomain %d, %d bytes", appDomainId->second, bytes);
+   appDomainInfo->second.bytesInAppDomain += bytes;
+   appDomainInfo->second.allocsInAppDomain += 1;
+
+   MemoryInfo memoryInfo { appDomainId->second, bytes };
+   memoryAppDomain.insert(std::make_pair(address, memoryInfo));
+}
+
+int HostContext::OnMemoryRelease(PVOID address) {
+
+   auto memoryInfo = memoryAppDomain.find(address);
+   if (memoryInfo == memoryAppDomain.end())
+      return 0;
+
+   DWORD appDomainId = memoryInfo->second.appDomainId;
+   auto appDomainInfo = appDomains.find(appDomainId);
+   if (appDomainInfo == appDomains.end())
+      return 0;
+
+   DWORD dwBytes = memoryInfo->second.dwBytes;
+   Logger::Debug("Tracking release in AppDomain %d, %d bytes", appDomainId, dwBytes);
+   appDomainInfo->second.bytesInAppDomain -= dwBytes;
+   appDomainInfo->second.allocsInAppDomain -= 1;
+
+   memoryAppDomain.erase(memoryInfo);
+   return dwBytes;
+}
+
 bool HostContext::IsSnippetThread(DWORD dwNativeThreadId) {
    CrstLock(this->domainMapCrst);
    

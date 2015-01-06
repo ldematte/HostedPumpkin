@@ -3,15 +3,17 @@
 #define MEMORY_H_INCLUDED
 
 #include "../Common.h"
+#include "../HostContext.h"
 
 class SHMemoryManager : public IHostMemoryManager {
 
 private:
    volatile LONG m_cRef;
    ICLRMemoryNotificationCallback* memoryNotificationCallback;
+   HostContext* hostContext;
 
 public:
-   SHMemoryManager();
+   SHMemoryManager(HostContext* context);
    ~SHMemoryManager();
 
    // IUnknown functions

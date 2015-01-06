@@ -4,15 +4,17 @@
 #define SH_THREADPOOL_MANAGER_H_INCLUDED
 
 #include "../Common.h"
+#include "../HostContext.h"
 
 class SHThreadpoolManager : public IHostThreadpoolManager {
 
 private:
    volatile LONG m_cRef;
    DWORD maxThreads;
+   HostContext* hostContext;
 
 public:
-   SHThreadpoolManager();
+   SHThreadpoolManager(HostContext* context);
    ~SHThreadpoolManager();
 
    // IUnknown functions

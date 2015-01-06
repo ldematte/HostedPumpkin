@@ -31,9 +31,9 @@ DHHostControl::DHHostControl(ICLRRuntimeHost *pRuntimeHost, const std::list<Asse
 
    taskManager = new SHTaskManager(hostContext);
    syncManager = new SHSyncManager();
-   memoryManager = new SHMemoryManager();
+   memoryManager = new SHMemoryManager(hostContext);
    gcManager = new SHGCManager();
-   threadpoolManager = new SHThreadpoolManager();
+   threadpoolManager = new SHThreadpoolManager(hostContext);
    iocpManager = new SHIoCompletionManager(hostContext);
    assemblyManager = new SHAssemblyManager(hostAssemblies);
    eventManager = new SHEventManager(hostContext);

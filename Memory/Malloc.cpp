@@ -6,8 +6,9 @@
 
 #include <crtdbg.h>
 
-SHMalloc::SHMalloc(DWORD dwMallocType) {
+SHMalloc::SHMalloc(DWORD dwMallocType, HostContext* context) {
    m_cRef = 0;
+   hostContext = context;
 
    DWORD options = 0;
 
@@ -57,22 +58,39 @@ STDMETHODIMP SHMalloc::QueryInterface(const IID &riid, void **ppvObject)
    return E_NOINTERFACE;
 }
 
+inline HRESULT SHMalloc::InternalAlloc(DWORD dwThreadId, SIZE_T cbSize, EMemoryCriticalLevel eCriticalLevel, void **ppMem) {
+   bool belowMemoryLimit = hostContext->OnMemoryAcquiring(dwThreadId, cbSize);
+
+   *ppMem = NULL;
+   if (eCriticalLevel > eTaskCritical || belowMemoryLimit) {
+      *ppMem = HeapAlloc(hHeap, 0, cbSize);
+      if (*ppMem == NULL) {
+         Logger::Error("HeapAlloc NULL");
+         return E_OUTOFMEMORY;
+      }
+      else {
+         hostContext->OnMemoryAcquire(dwThreadId, cbSize, *ppMem);
+         return S_OK;
+      }
+   }
+   else {
+      Logger::Error("Above memory limits, and critical level is too low. Returning E_OUTOFMEMORY");
+      return E_OUTOFMEMORY;
+   }
+}
+
 // IHostMalloc functions
 STDMETHODIMP SHMalloc::Alloc(
    /* [in] */ SIZE_T cbSize,
    /* [in] */ EMemoryCriticalLevel eCriticalLevel,
    /* [out] */ void **ppMem) {
 
-   // TODO: track which thread (and appdomain!) requested this memory
-   Logger::Info("Malloc from %d, %d bytes,  %d critical level", GetCurrentThreadId(), cbSize, eCriticalLevel);
+   DWORD dwThreadId = GetCurrentThreadId();
 
-   *ppMem = HeapAlloc(hHeap, 0, cbSize);
-   if (ppMem == NULL) {
-      Logger::Error("HeapAlloc returned NULL");
-      return E_OUTOFMEMORY;
-   }
-
-   return S_OK;
+   Logger::Info("Malloc from %d, %d bytes,  %d critical level", dwThreadId, cbSize, eCriticalLevel);
+   // Track which thread (and appdomain!) requested this memory
+   return InternalAlloc(dwThreadId, cbSize, eCriticalLevel, ppMem);
+   
 }
 
 STDMETHODIMP SHMalloc::DebugAlloc(
@@ -84,21 +102,15 @@ STDMETHODIMP SHMalloc::DebugAlloc(
    /* [annotation][out] */
    _Outptr_result_maybenull_  void **ppMem) {
 
-   // TODO: track which thread (and appdomain!) requested this memory
+   DWORD dwThreadId = GetCurrentThreadId();
+
    Logger::Info("Malloc from %d (%s:%d), %d bytes,  %d critical level", GetCurrentThreadId(), pszFileName, iLineNo, cbSize, eCriticalLevel);
-
-   *ppMem = HeapAlloc(hHeap, 0, cbSize);
-   if (ppMem == NULL) {
-      Logger::Error("HeapAlloc returned NULL");
-      return E_OUTOFMEMORY;
-   }
-
-   return S_OK;
-
+   // Track which thread (and appdomain!) requested this memory
+   return InternalAlloc(dwThreadId, cbSize, eCriticalLevel, ppMem);
 }
 
 STDMETHODIMP SHMalloc::Free(void *pMem) {
    HeapFree(hHeap, 0, pMem);
+   hostContext->OnMemoryRelease(pMem);
    return S_OK;
-
 }

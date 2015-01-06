@@ -3,14 +3,16 @@
 #define SH_MALLOC_H_INCLUDED
 
 #include "../Common.h"
+#include "../HostContext.h"
 
 class SHMalloc : public IHostMalloc {
 
 private:
    volatile LONG m_cRef;
    HANDLE hHeap;
+   HostContext* hostContext;
 public:
-   SHMalloc(DWORD dwMallocType);
+   SHMalloc(DWORD dwMallocType, HostContext* context);
    virtual ~SHMalloc();
 
    // IUnknown functions
@@ -35,8 +37,9 @@ public:
 
    STDMETHODIMP Free(
       /* [in] */ void *pMem);
-   
 
+private:
+   HRESULT InternalAlloc(DWORD dwThreadId, SIZE_T cbSize, EMemoryCriticalLevel eCriticalLevel, void **ppMem);
 };
 
 #endif //SH_MALLOC_H_INCLUDED

@@ -14,6 +14,13 @@
 #include "AppDomainInfo.h"
 
 const int MAX_THREAD_PER_DOMAIN = 10;
+const int MAX_ALLOCS_PER_DOMAIN = 1000;
+const int MAX_BYTES_PER_DOMAIN = 10 * 1024 * 1024; // 10 MB
+
+struct MemoryInfo {
+   DWORD appDomainId;
+   DWORD dwBytes;
+};
 
 class HostContext: public IHostContext {
 private:
@@ -27,6 +34,7 @@ private:
 #endif //TRACK_THREAD_RELATIONSHIP
 
    std::map<DWORD, DWORD> threadAppDomain;
+   std::map<void*, MemoryInfo> memoryAppDomain;
 
    volatile unsigned long numZombieDomains;
 
@@ -79,8 +87,9 @@ public:
    bool OnThreadAcquire(DWORD dwParentThreadId, DWORD dwNewThreadId);
    bool OnThreadRelease(DWORD dwThreadId);
 
-   bool OnMemoryAlloc(DWORD dwThreadId, LONG bytes, PVOID address);
-   bool OnMemoryFree(LONG bytes, PVOID address);
+   bool OnMemoryAcquiring(DWORD dwThreadId, LONG bytes);
+   void OnMemoryAcquire(DWORD dwThreadId, LONG bytes, PVOID address);
+   int OnMemoryRelease(PVOID address);
 
    bool IsSnippetThread(DWORD nativeThreadId);
   

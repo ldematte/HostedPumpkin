@@ -239,8 +239,8 @@ namespace SimpleHostRuntime {
                      snippetToRun = snippetsQueue.Take();
                   }
                   catch (InvalidOperationException) {
-                     // Someone called "complete".
-                     // We want to exit the pool
+                     // Someone called "complete". No more snippets in this process.
+                     // We want to exit the pool.
                      return;
                   }
                   
@@ -309,7 +309,7 @@ namespace SimpleHostRuntime {
                      // "Although C# only allows you to throw objects of type Exception and types deriving from it, 
                      // other languages don’t have any such restriction."
                      // http://weblogs.asp.net/kennykerr/introduction-to-msil-part-5-exception-handling
-                     // No longer necessary
+                     // It turns out this is no longer necessary
                      // http://blogs.msdn.com/b/jmanning/archive/2005/09/16/469091.aspx
                      // catch { }
 

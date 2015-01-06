@@ -2,13 +2,15 @@
 #include "MemoryMgr.h"
 #include "Malloc.h"
 
+
 #include "../Logger.h"
 
 
 // TODO: Use memoryNotificationCallback to notify the CLR when memory is low
-SHMemoryManager::SHMemoryManager() {
+SHMemoryManager::SHMemoryManager(HostContext* context) {
    m_cRef = 0;
    memoryNotificationCallback = NULL;
+   hostContext = context;
 }
 
 SHMemoryManager::~SHMemoryManager() {
@@ -45,26 +47,45 @@ STDMETHODIMP SHMemoryManager::QueryInterface(const IID &riid, void **ppvObject) 
 
 
 STDMETHODIMP SHMemoryManager::CreateMalloc(DWORD dwMallocType, IHostMalloc **ppMalloc) {
-   *ppMalloc = new SHMalloc(dwMallocType);
-   // TODO: check return value from SHMalloc "constructor"? (make a init function?)
-   return S_OK;
-}
-
-STDMETHODIMP SHMemoryManager::VirtualAlloc(void *pAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect, EMemoryCriticalLevel eCriticalLevel, void **ppMem) {
-   Logger::Info("VirtualAlloc: %d bytes, critical level %d", dwSize, eCriticalLevel);
-   *ppMem = ::VirtualAlloc(pAddress, dwSize, flAllocationType, flProtect);
-   if (*ppMem == NULL) {
-      DWORD errorCode = GetLastError();
-      Logger::Error("VirtualAlloc error: %d", errorCode);
-      return HRESULT_FROM_WIN32(errorCode);
+   *ppMalloc = new SHMalloc(dwMallocType, hostContext);
+   if (*ppMalloc == NULL) {
+      return E_OUTOFMEMORY;
    }
    return S_OK;
 }
 
+STDMETHODIMP SHMemoryManager::VirtualAlloc(void *pAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect, EMemoryCriticalLevel eCriticalLevel, void **ppMem) {
+   DWORD dwThreadId = GetCurrentThreadId();
+   
+   Logger::Info("VirtualAlloc: %d bytes, critical level %d", dwSize, eCriticalLevel);
+
+   bool belowMemoryLimit = hostContext->OnMemoryAcquiring(dwThreadId, dwSize);
+
+   *ppMem = NULL;
+   if (eCriticalLevel > eTaskCritical || belowMemoryLimit) {
+      *ppMem = ::VirtualAlloc(pAddress, dwSize, flAllocationType, flProtect);
+      if (*ppMem == NULL) {
+         DWORD errorCode = GetLastError();
+         Logger::Error("VirtualAlloc error: %d", errorCode);
+         return HRESULT_FROM_WIN32(errorCode);
+      }
+      else {
+         hostContext->OnMemoryAcquire(dwThreadId, dwSize, *ppMem);
+         return S_OK;
+      }
+   }
+   else {
+      Logger::Error("Above memory limits, and critical level is too low. Returning E_OUTOFMEMORY");
+      return E_OUTOFMEMORY;
+   }
+}
+
 STDMETHODIMP SHMemoryManager::VirtualFree(LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType) {
    Logger::Info("VirtualFree: %d bytes", dwSize);
-   if (::VirtualFree(lpAddress, dwSize, dwFreeType))
+   if (::VirtualFree(lpAddress, dwSize, dwFreeType)) {
+      hostContext->OnMemoryRelease(lpAddress);
       return S_OK;
+   }
    else {
       DWORD errorCode = GetLastError();
       Logger::Error("VirtualFree error: %d", errorCode);
@@ -101,7 +122,7 @@ STDMETHODIMP SHMemoryManager::GetMemoryLoad(DWORD *pMemoryLoad, SIZE_T *pAvailab
    GlobalMemoryStatus(&memoryStatus);
 
    *pMemoryLoad = memoryStatus.dwMemoryLoad;
-   *pAvailableBytes = memoryStatus.dwAvailVirtual; // TODO: restrict to "available physical?
+   *pAvailableBytes = memoryStatus.dwAvailVirtual; // TODO: restrict to "available physical?"
    return S_OK;
 }
 
@@ -122,10 +143,12 @@ STDMETHODIMP SHMemoryManager::NeedsVirtualAddressSpace(LPVOID startAddress, SIZE
 
 STDMETHODIMP SHMemoryManager::AcquiredVirtualAddressSpace(LPVOID startAddress, SIZE_T size) {
    Logger::Info("In AcquiredVirtualAddressSpace (MapViewOfFile called) at %x for %d bytes", startAddress, size);
+   hostContext->OnMemoryAcquire(GetCurrentThreadId(), size, startAddress);
    return S_OK;
 }
 
 STDMETHODIMP SHMemoryManager::ReleasedVirtualAddressSpace(LPVOID startAddress) {
    Logger::Info("In ReleasedVirtualAddressSpace (UnmapViewOfFile called) at %x", startAddress);
+   hostContext->OnMemoryRelease(startAddress);
    return S_OK;
 }

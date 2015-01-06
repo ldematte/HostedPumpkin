@@ -19,7 +19,7 @@ struct AppDomainInfo {
    ISimpleHostDomainManager* appDomainManager;
    LONG threadsInAppDomain;
    LONG bytesInAppDomain;
-
+   LONG allocsInAppDomain;
 };
 
 #endif //SH_APPDOMAIN_INFO_H_INCLUDED
