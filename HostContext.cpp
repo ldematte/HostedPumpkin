@@ -369,7 +369,7 @@ bool HostContext::OnMemoryAcquiring(DWORD dwThreadId, LONG bytes) {
 
    auto appDomainInfo = appDomains.find(appDomainId->second);
    if (appDomainInfo != appDomains.end()) {
-      Logger::Debug("Requesting allocation in AppDomain %d, %d bytes", appDomainId->second, bytes);
+      Logger::Info("Requesting allocation in AppDomain %d, %d bytes", appDomainId->second, bytes);
 
       if (appDomainInfo->second.bytesInAppDomain + bytes > MAX_BYTES_PER_DOMAIN)
          return false;
@@ -394,7 +394,7 @@ void HostContext::OnMemoryAcquire(DWORD dwThreadId, LONG bytes, PVOID address) {
    if (appDomainInfo == appDomains.end())
       return;
 
-   Logger::Debug("Tracking allocation in AppDomain %d, %d bytes", appDomainId->second, bytes);
+   Logger::Info("Tracking allocation in AppDomain %d, %d bytes", appDomainId->second, bytes);
    appDomainInfo->second.bytesInAppDomain += bytes;
    appDomainInfo->second.allocsInAppDomain += 1;
 
@@ -414,7 +414,7 @@ int HostContext::OnMemoryRelease(PVOID address) {
       return 0;
 
    DWORD dwBytes = memoryInfo->second.dwBytes;
-   Logger::Debug("Tracking release in AppDomain %d, %d bytes", appDomainId, dwBytes);
+   Logger::Info("Tracking release in AppDomain %d, %d bytes", appDomainId, dwBytes);
    appDomainInfo->second.bytesInAppDomain -= dwBytes;
    appDomainInfo->second.allocsInAppDomain -= 1;
 
