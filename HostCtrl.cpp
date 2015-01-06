@@ -192,9 +192,10 @@ bool DHHostControl::SetupEscalationPolicy() {
       /////////////////////
       // Action -> Failures
 
-      // If we are not able to obtain a resource (OutOfMemoryException), unload the
-      // AppDomain
-      hr = clrPolicyManager->SetActionOnFailure(FAIL_NonCriticalResource, eUnloadAppDomain);  //eAbortThread
+      // If we are not able to obtain a resource (OutOfMemoryException), 
+      // ALTERNATIVE 1: unload the AppDomain (eUnloadAppDomain)
+      // ALTERNATIVE 2: abort the calling thread (eAbortThread)
+      hr = clrPolicyManager->SetActionOnFailure(FAIL_NonCriticalResource, eThrowException);
       if (FAILED(hr)) {
          Logger::Critical("Cannot SetActionOnFailure: HRESULT %x", hr);
          return false;

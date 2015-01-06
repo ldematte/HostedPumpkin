@@ -89,8 +89,7 @@ STDMETHODIMP SHMalloc::Alloc(
 
    Logger::Info("Malloc from %d, %d bytes,  %d critical level", dwThreadId, cbSize, eCriticalLevel);
    // Track which thread (and appdomain!) requested this memory
-   return InternalAlloc(dwThreadId, cbSize, eCriticalLevel, ppMem);
-   
+   return InternalAlloc(dwThreadId, cbSize, eCriticalLevel, ppMem);   
 }
 
 STDMETHODIMP SHMalloc::DebugAlloc(

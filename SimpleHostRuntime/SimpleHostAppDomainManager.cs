@@ -141,6 +141,7 @@ namespace SimpleHostRuntime {
       }
 
       void OnDomainUnload(int domainId) {
+         System.Diagnostics.Debug.WriteLine("OnDomainUnload: domain " + domainId);
          if (DomainUnload != null)
             DomainUnload(domainId);
       }
@@ -180,7 +181,7 @@ namespace SimpleHostRuntime {
          //Run a single test
          var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                  .Where(m => m.Name.StartsWith("SnippetTest7"))
+                  .Where(m => m.Name.StartsWith("SnippetTest12"))
                   .Select(m => m.Name)
                   .Single();
 
