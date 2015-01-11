@@ -1,4 +1,5 @@
-﻿using System;
+﻿using Pumpkin.Data;
+using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -20,25 +21,6 @@ namespace SimpleHostRuntime {
       Busy,      
       Zombie
    };
-
-   [SecuritySafeCritical]
-   [Serializable]
-   public enum SnippetStatus {
-      Success,
-      InitializationError,
-      Timeout,
-      ExecutionError,
-      CriticalError,
-      ResourceError
-   }
-
-   [SecuritySafeCritical]
-   [Serializable]
-   public struct SnippetResult {
-      public SnippetStatus status;
-      public Exception exception;
-      public long executionTime;
-   }
 
    [ComVisible(true), Guid("59D0437C-7AF2-4CCE-9104-E39970D739D6")]
    public enum HostEventType {
