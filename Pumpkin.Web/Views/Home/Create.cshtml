@@ -1,0 +1,47 @@
+﻿@{
+    Layout = "~/Views/Shared/_Layout.cshtml";
+}
+
+@section scripts {
+<script>
+   $(function () {
+      var submissionResult = $('#submissionResult');
+      $("button").click(function () {
+         $.ajax({
+            type: "POST",
+            url: "SubmitSnippet",
+            data: $('#snippetForm').serializeJSON(),
+            contentType: "application/json",
+            datatype: "text/plain",
+            success: function (data) {
+               submissionResult.html(data);
+               submissionResult.removeClass(function (i, c) { (c.indexOf("alert") >= 0) });
+               submissionResult.addClass("alert alert-success");
+            },
+            error: function (data) {
+               submissionResult.html(data);
+               submissionResult.removeClass(function (i, c) { (c.indexOf("alert") >= 0) });
+               submissionResult.addClass("alert alert-danger");
+            }
+         });
+      });
+   });
+</script>
+}
+
+<div class="col-md-6">
+   <h3>Submit a new snippet</h3>
+   <div id="submissionResult" role="alert"></div>
+   <form id="snippetForm">
+      <div class="form-group">
+         <label for="usingInput">Using directives</label>
+         <input class="form-control" id="usingInput" name="usingDirectives" placeholder="using namespace;">
+      </div>
+      <div class="form-group">
+         <label for="snippetInput">Snippet</label>
+         <textarea class="form-control" id="snippetInput" name="snippetSource" placeholder="Enter code here..."></textarea>
+      </div>      
+   </form>
+   <button type="submit" class="btn btn-default">Submit</button>
+</div>
+

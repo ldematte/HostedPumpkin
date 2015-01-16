@@ -18,6 +18,7 @@ namespace Pumpkin.Data {
       public Guid Id { get; set; }
       public byte[] AssembyBytes { get; set; }
       public string SnippetSource { get; set; }
+      public string UsingDirectives { get; set; }
       public int SnippetHealth { get; set; }
    }
 
@@ -55,7 +56,7 @@ namespace Pumpkin.Data {
          return null;
       }
 
-      public Guid Save(String source, byte[] assemblyBytes) {
+      public Guid Save(String usings, String source, byte[] assemblyBytes) {
          Guid id = Guid.NewGuid();
 
          // Save
@@ -66,7 +67,8 @@ namespace Pumpkin.Data {
 
             cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.UniqueIdentifier));
             cmd.Parameters.Add(new SqlCeParameter("AssembyBytes", SqlDbType.Image));
-            cmd.Parameters.Add(new SqlCeParameter("SnippetSource", SqlDbType.NVarChar));
+            cmd.Parameters.Add(new SqlCeParameter("SnippetSource", SqlDbType.NText));
+            cmd.Parameters.Add(new SqlCeParameter("UsingDirectives", SqlDbType.NVarChar));
             cmd.Parameters.Add(new SqlCeParameter("SnippetHealth", SqlDbType.Int));
            
             cmd.Prepare();
@@ -74,6 +76,7 @@ namespace Pumpkin.Data {
             cmd.Parameters["Id"].Value = id.ToString();
             cmd.Parameters["AssembyBytes"].Value = assemblyBytes;
             cmd.Parameters["SnippetSource"].Value = source;
+            cmd.Parameters["UsingDirectives"].Value = usings;
             cmd.Parameters["SnippetHealth"].Value = (int)SnippetHealth.Unknown;
             cmd.ExecuteNonQuery();
          }
@@ -95,6 +98,28 @@ namespace Pumpkin.Data {
             cmd.Parameters["Id"].Value = id.ToString();
             cmd.Parameters["SnippetHealth"].Value = (int)newStatus;
             cmd.ExecuteNonQuery();
+         }
+      }
+
+      public IEnumerable<SnippetData> All() {
+         using (var connection = GetOpenConnection()) {
+            SqlCeCommand cmd = connection.CreateCommand();
+            cmd.CommandText = "SELECT * FROM Snippets";
+            
+            SqlCeDataReader reader = cmd.ExecuteReader();
+
+            while (reader.Read()) {
+               long length = reader.GetBytes(1, 0, null, 0, 0);
+               byte[] assemblyBytes = new byte[length];
+               reader.GetBytes(1, 0, assemblyBytes, 0, assemblyBytes.Length);
+
+               yield return new SnippetData() {
+                  Id = reader.GetGuid(0),
+                  AssembyBytes = assemblyBytes,
+                  SnippetSource = reader.GetString(2),
+                  SnippetHealth = reader.GetInt32(3)
+               };
+            }
          }
       }
    }

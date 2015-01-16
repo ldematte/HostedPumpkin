@@ -12,26 +12,26 @@ namespace PumpkinTests {
         public void CSharpProviderAssembliesShouldBeTransparent() {
 
             var snippetSource = File.ReadAllText(@"..\..\Tests\FileRead.cs");
-            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource);
+            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource, Path.GetTempPath());
 
-            var assembly = System.Reflection.Assembly.Load(snippetAssembly.Item1);
+            var assembly = System.Reflection.Assembly.Load(snippetAssembly.assemblyBytes);
             Assert.IsTrue(assembly.GetType("Snippets.FileRead").GetMethod(SnippetCompiler.SnippetMainMethodName).IsSecurityTransparent);
         }
 
         [TestMethod]
         public void CecilWhitelistAssembly() {
             var snippetSource = File.ReadAllText(@"..\..\Tests\CreateObjectWithActivator.cs");
-            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource);
+            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource, Path.GetTempPath());
 
             var whiteList = new List<ListEntry> { new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089") };
 
-            Assert.IsTrue(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.Item1, whiteList));
+            Assert.IsTrue(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.assemblyBytes, whiteList));
         }
 
         [TestMethod]
         public void CecilWhitelistTypes() {
             var snippetSource = File.ReadAllText(@"..\..\Tests\CreateObjectWithActivator.cs");
-            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource);
+            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource, Path.GetTempPath());
 
             var whiteList = new List<ListEntry> { 
                 new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", "System.Type"),
@@ -40,13 +40,13 @@ namespace PumpkinTests {
                 new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", "System.Activator")
             };
 
-            Assert.IsTrue(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.Item1, whiteList));
+            Assert.IsTrue(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.assemblyBytes, whiteList));
         }
 
         [TestMethod]
         public void CecilWhitelistMethods() {
             var snippetSource = File.ReadAllText(@"..\..\Tests\CreateObjectWithActivator.cs");
-            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource);
+            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource, Path.GetTempPath());
 
             var whiteList = new List<ListEntry> { 
                 new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", "System.Type"),
@@ -55,13 +55,13 @@ namespace PumpkinTests {
                 new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", "System.Activator")
             };
 
-            Assert.IsTrue(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.Item1, whiteList));
+            Assert.IsTrue(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.assemblyBytes, whiteList));
         }
 
         [TestMethod]
         public void CecilWhitelistMethodsNotListed() {
             var snippetSource = File.ReadAllText(@"..\..\Tests\CreateObjectWithActivator.cs");
-            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource);
+            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(snippetSource, Path.GetTempPath());
 
             var whiteList = new List<ListEntry> { 
                 new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", "System.Type"),
@@ -70,7 +70,7 @@ namespace PumpkinTests {
                 new ListEntry("mscorlib, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089", "System.Activator")
             };
 
-            Assert.IsFalse(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.Item1, whiteList));
+            Assert.IsFalse(SnippetCompiler.CheckAssemblyAgainstWhitelist(snippetAssembly.assemblyBytes, whiteList));
         }
     }
 }
