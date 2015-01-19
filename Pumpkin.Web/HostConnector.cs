@@ -15,6 +15,7 @@ namespace Pumpkin.Web {
 
       private static Socket socket;
       private static Socket GetSocket() {
+         try {
          if (socket == null)
             socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
 
@@ -23,17 +24,21 @@ namespace Pumpkin.Web {
          
          return socket;
       }
+         catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine(ex.Message);
+            throw;
+         }
+      }
 
-      public static async Task<SnippetResult> RunSnippetAsync(string snippetId) {
+      public static async Task<string> RunSnippetAsync(string snippetId) {
 
          var socket = GetSocket();
-         byte[] buffer = Guid.Parse(snippetId).ToByteArray();
 
-         await socket.SendAsync(buffer, 0, buffer.Length, SocketFlags.None);
+         await socket.SendAsync(snippetId, true);
          string s = await socket.ReceiveAsync();
 
          // TODO TODO Deserialize, and return the result
-         return new SnippetResult();
+         return s;
       }
 
    }

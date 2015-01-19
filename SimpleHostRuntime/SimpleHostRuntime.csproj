@@ -51,6 +51,7 @@
     <Compile Include="SimpleHostAppDomainManager.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />
     <Compile Include="SimpleHostSecurityManager.cs" />
+    <Compile Include="SimpleHostServer.cs" />
   </ItemGroup>
   <ItemGroup>
     <None Include="sn.snk" />

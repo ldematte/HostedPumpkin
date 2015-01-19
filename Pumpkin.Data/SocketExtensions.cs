@@ -6,13 +6,12 @@ using System.Text;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace Pumpkin.Web {
+namespace Pumpkin.Data {
    public static class SocketExtensions {
 
       // From http://blogs.msdn.com/b/pfxteam/archive/2011/12/15/10248293.aspx
-      // Consider the other solutio if we have many more requests AND we do not move
+      // Consider the other solution if we have many more requests AND we do not move
       // to another method (e.g.: a redis queue)
-
       public static Task<int> ReceiveAsync(this Socket socket, byte[] buffer,
          int offset, int size, SocketFlags socketFlags) {
          var tcs = new TaskCompletionSource<int>(socket);
@@ -45,6 +44,16 @@ namespace Pumpkin.Web {
          return tcs.Task;
       }
 
+      public static Task<int> SendAsync(this Socket socket, string s, bool terminateString) {
+         byte[] buffer;
+         if (terminateString)
+            buffer = Encoding.Unicode.GetBytes(s + "\0");
+         else
+            buffer = Encoding.Unicode.GetBytes(s);
+
+         return SendAsync(socket, buffer, 0, buffer.Length, SocketFlags.None);
+      }
+
       class SocketStatus {
          public TaskCompletionSource<string> taskCompletionSource;
          public const int BufferSize = 1024;
@@ -63,21 +72,34 @@ namespace Pumpkin.Web {
          try {
             int read = socket.EndReceive(iar);
 
-            if (read > 0) {
-               socketStatus.sb.Append(Encoding.Unicode.GetString(socketStatus.buffer, 0, read));
-               socket.BeginReceive(socketStatus.buffer, 0, SocketStatus.BufferSize, 0,
-                                       new AsyncCallback(ReceiveCallback), socketStatus);
+            // Socket closed, or read error
+            if (read <= 0) {
+               //All of the data has been read, so return it
+               socketStatus.taskCompletionSource.TrySetResult(socketStatus.sb.ToString());
             }
             else {
-               if (socketStatus.sb.Length > 1) {
-                  //All of the data has been read, so return it
+               var s = Encoding.Unicode.GetString(socketStatus.buffer, 0, read);
+               var finished = isFinished(socketStatus.buffer, read);
+               socketStatus.sb.Append(s);
+
+               if (finished) {
                   socketStatus.taskCompletionSource.TrySetResult(socketStatus.sb.ToString());
                }
-            }
+               else {
+                  socket.BeginReceive(socketStatus.buffer, 0, SocketStatus.BufferSize, 0,
+                                      new AsyncCallback(ReceiveCallback), socketStatus);
+               }
+            }            
          }
          catch (Exception ex) {
             socketStatus.taskCompletionSource.TrySetException(ex);
          }
+      }
+
+      private static bool isFinished(byte[] buffer, int len) {
+         //return (buffer[len - 1] == 10 || buffer[len - 1] == 13);
+         // Unicode, c-style terminator
+         return (len >= 2 && buffer[len - 2] == 0 && buffer[len - 1] == 0);
       }
 
       public static Task<string> ReceiveAsync(this Socket socket) {
@@ -91,5 +113,19 @@ namespace Pumpkin.Web {
          
       }
 
+      public static Task<Socket> AcceptAsync(this Socket socket) {
+         var taskCompletionSource = new TaskCompletionSource<Socket>();
+         socket.BeginAccept(iar => {
+            var listenerSocket = (Socket)iar.AsyncState;
+            try {
+               Socket s = listenerSocket.EndAccept(iar);
+               taskCompletionSource.TrySetResult(s);
+            }
+            catch (Exception ex) {
+               taskCompletionSource.TrySetException(ex);
+            }
+         }, socket);
+         return taskCompletionSource.Task;
+      }
    }
 }

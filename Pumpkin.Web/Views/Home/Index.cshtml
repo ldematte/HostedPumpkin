@@ -4,6 +4,49 @@
 @{
    ViewBag.Title = "Home Page";
 }
+@section Scripts {
+
+   <script src="/Scripts/jquery.signalR-2.2.0.min.js"></script>
+   <script src="/signalr/hubs"></script>
+
+   <script type="text/javascript">
+      $(function () {
+         // Declare a proxy to reference the hub.
+         var resultHubConnectionId;
+         var submissionInfo = $("#submissionInfo");
+
+         var handleResult = function (connectionId, message) {
+            submissionInfo.text("Done! CliendId = " + resultHubConnectionId + " ServerId = " + connectionId + " Message = " + message);
+         };
+
+         if ($.connection && $.connection.resultHub) {
+            var resultHub = $.connection.resultHub;
+            resultHub.client.sendResult = handleResult;
+            $.connection.hub.start().done(function () {
+               // TODO: place in a proper object?
+               resultHubConnectionId = $.connection.hub.id;
+            });
+         }
+
+         $("#btnGo").click(function () {
+            submissionInfo.text("Submitting...");
+
+            $.ajax("/Home/SubmitRequest", {
+               type: "POST",
+               data: { snippetId: this.data("snippet-id"), connectionId: resultHubConnectionId }
+
+            }).done(function (data, textStatus, jqXHR) {
+               if (jqXHR.status == 202) {
+                  submissionInfo.text("Submitted...");
+               }
+               else {
+                  handleResult(data.connection, data.message);
+               }
+            });
+         });
+      });
+   </script>
+}
 
 <div class="jumbotron">
    <h2>"Hosted" Pumpkin</h2>
@@ -12,12 +55,16 @@
 </div>
 
 <div class="row">
+   <div id="submissionInfo"></div>
    <div class="row">      
       <h3>Execute a snippet</h3>
       <dl>
          @foreach (var item in Model) {
-            <dt>@item.Id</dt>  
-            <dd>@item.Source</dd>
+            <dt>@item.Id</dt>
+            <dd>
+               @item.Source<br />
+               <button id="btnGo" data-snippet-id="@item.Id">Go!</button>
+            </dd>
          }
       </dl>
    </div>

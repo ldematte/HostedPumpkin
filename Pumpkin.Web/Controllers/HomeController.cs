@@ -1,12 +1,16 @@
-﻿using Pumpkin.Data;
-using Pumpkin.Web.Models;
+﻿using Microsoft.AspNet.SignalR;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Net.Sockets;
+using System.Net;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Web;
 using System.Web.Mvc;
+using Pumpkin.Data;
+using Pumpkin.Web.Hubs;
+using Pumpkin.Web.Models;
 
 namespace Pumpkin.Web.Controllers {
    public class HomeController : Controller {
@@ -21,6 +25,35 @@ namespace Pumpkin.Web.Controllers {
 
       public ActionResult Create() {
          return View();
+      }
+
+      private static async Task SubmitSnippetPostFeedback(string snippetId, string connectionId) {
+         string result = "";
+         try {
+            result = await HostConnector.RunSnippetAsync(snippetId);
+         }
+         catch (Exception ex) {
+            result = ex.Message;
+         }
+
+         var hubContext = GlobalHost.ConnectionManager.GetHubContext<ResultHub>();
+         hubContext.Clients.Client(connectionId).SendResult(connectionId, result);         
+      }
+
+      [HttpPost]
+      public async Task<ActionResult> SubmitRequest(string snippetId, string connectionId) {
+         if (String.IsNullOrEmpty(snippetId))
+            return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
+
+         if (connectionId != null) {
+            Task.Run(() => SubmitSnippetPostFeedback(snippetId, connectionId)).FireAndForget();
+            return new HttpStatusCodeResult(HttpStatusCode.Accepted);
+         }
+         else {
+            string result = await HostConnector.RunSnippetAsync(snippetId);
+            Response.StatusCode = (int)HttpStatusCode.OK;
+            return Json(new { connectionId = connectionId, message = result });
+         }         
       }
 
 
