@@ -387,6 +387,10 @@ namespace SimpleHostRuntime {
       }
 
       internal void SubmitSnippet(SnippetInfo snippetInfo) {
+         SubmitSnippet(snippetInfo);
+      }         
+
+      internal void SubmitSnippet(SnippetInfo snippetInfo, Action<SnippetResult> continuation) {
          // check if we need to re-introduce some domains in the pool
          if (Interlocked.Read(ref numberOfThreadsInPool) < NumberOfDomainsInPool) {
             // A sort of "double-check optimization": we enter here only if there is a shortage of threads/domains, but
@@ -408,6 +412,10 @@ namespace SimpleHostRuntime {
             }
          }
 
+         // Store the continuation _before_ adding the snippet info the the processing queue
+         if (!String.IsNullOrEmpty(snippetInfo.submissionId) && continuation != null) {
+            submissionMap[snippetInfo.submissionId] = continuation;
+         }
          snippetsQueue.Add(snippetInfo);
       }
    }

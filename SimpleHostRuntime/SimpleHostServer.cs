@@ -14,7 +14,15 @@ using Newtonsoft.Json;
 namespace SimpleHostRuntime {
    class SimpleHostServer {
 
-      public static void StartListening() {
+      private readonly SnippetDataRepository repository;
+      private readonly DomainPool domainPool;
+
+      public SimpleHostServer(SnippetDataRepository repository, DomainPool domainPool) {
+         this.repository = repository;
+         this.domainPool = domainPool;
+      }
+
+      public void StartListening() {
          // Establish the local endpoint for the socket.
          // The DNS name of the computer
          // IPHostEntry ipHostInfo = Dns.GetHostEntry(Dns.GetHostName());
@@ -41,7 +49,7 @@ namespace SimpleHostRuntime {
          Console.Read();
       }
 
-      private static async Task WaitForConnection(Socket listener) {
+      private async Task WaitForConnection(Socket listener) {
          while (true) {
             // Start an asynchronous socket to listen for connections.
             Console.WriteLine("Waiting for a connection...");
@@ -51,16 +59,11 @@ namespace SimpleHostRuntime {
          }
       }
 
-      private static Random random = new Random();
-
-      private static Task<string> DoStuffAndReturnWhenIdFinished(string snippetId) {
+      private Task<string> DoStuffAndReturnWhenIdFinished(string snippetId) {
          var tcs = new TaskCompletionSource<string>();
          
          // Post in queue, and return immediately
          // The pool/deque will "call us back" (set the status) when finished
-         SnippetDataRepository repository;
-         DomainPool domainPool;
-
          var snippetData = repository.Get(Guid.Parse(snippetId));
          
          domainPool.SubmitSnippet(new SnippetInfo() {
@@ -73,7 +76,7 @@ namespace SimpleHostRuntime {
          return tcs.Task;
       }
 
-      public static async void HandleConnection(Socket socket) {
+      public async void HandleConnection(Socket socket) {
          try {
             while (socket.Connected) {               
                var command = await socket.ReceiveAsync();
