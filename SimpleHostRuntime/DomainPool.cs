@@ -15,6 +15,7 @@ namespace SimpleHostRuntime {
       public byte[] assemblyFile;
       public string mainTypeName;
       public string methodName;
+      public string submissionId;
    }
 
    public class PooledDomainData {
@@ -43,6 +44,8 @@ namespace SimpleHostRuntime {
 
       Thread watchdogThread;
       BlockingCollection<SnippetInfo> snippetsQueue = new BlockingCollection<SnippetInfo>();
+      // Submission id to continuation
+      ConcurrentDictionary<string, Action<SnippetResult>> submissionMap = new ConcurrentDictionary<string, Action<SnippetResult>>();
 
       bool isExiting = false;
 
@@ -351,7 +354,12 @@ namespace SimpleHostRuntime {
                         recycleDomain = true;
                      } 
                    
-                     // TODO: return the result to the caller
+                     // Return the result to the caller
+                     if (!String.IsNullOrEmpty(snippetToRun.submissionId)) {
+                        var continuation = submissionMap[snippetToRun.submissionId];
+                        // TODO: cross-thread...?
+                        continuation(result);
+                     }
 
                      if (recycleDomain) {
                         System.Diagnostics.Debug.WriteLine("Recycling domain...");

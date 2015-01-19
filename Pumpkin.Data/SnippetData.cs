@@ -15,6 +15,10 @@ namespace Pumpkin.Data {
    }
 
    public class SnippetData {
+
+      public const string SnippetTypeName = "SnippetText";
+      public const string SnippetMethodName = "SnippetMain";
+
       public Guid Id { get; set; }
       public byte[] AssembyBytes { get; set; }
       public string SnippetSource { get; set; }

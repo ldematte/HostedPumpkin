@@ -62,9 +62,9 @@ using System;
 using System.Collections.Generic;
 {0}
 namespace Snippets {{
-    public class SnippetText {{
-        public static void SnippetMain() {{
-            {1}
+    public class {1} {{
+        public static void {2}() {{
+            {3}
         }}
     }}
 }}";
@@ -73,10 +73,12 @@ namespace Snippets {{
       [HttpPost]
       public ActionResult SubmitSnippet(String usingDirectives, String snippetSource) {
 
-         var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(String.Format(snippetBody, usingDirectives, snippetSource), Server.MapPath("App_Data"));
+         var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(
+            String.Format(snippetBody, usingDirectives, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName, snippetSource), 
+            Server.MapPath("App_Data"));
 
          if (snippetAssembly.success) {
-            var patchedAssembly = SnippetCompiler.PatchAssembly(snippetAssembly.assemblyBytes, "Snippets.SnippetText");
+            var patchedAssembly = SnippetCompiler.PatchAssembly(snippetAssembly.assemblyBytes, "Snippets." + SnippetData.SnippetTypeName);
 
             repository.Save(usingDirectives, snippetSource, patchedAssembly);
 

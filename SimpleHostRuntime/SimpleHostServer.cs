@@ -9,8 +9,9 @@ using System.Diagnostics;
 using System.Threading;
 
 using Pumpkin.Data;
+using Newtonsoft.Json;
 
-namespace Pumpkin.Web {
+namespace SimpleHostRuntime {
    class SimpleHostServer {
 
       public static void StartListening() {
@@ -52,37 +53,35 @@ namespace Pumpkin.Web {
 
       private static Random random = new Random();
 
-      private static Dictionary<int, TaskCompletionSource<string>> submissionMap = new Dictionary<int, TaskCompletionSource<string>>();
-
-      private static Task<string> DoStuffAndReturnWhenIdFinished(int id) {
+      private static Task<string> DoStuffAndReturnWhenIdFinished(string snippetId) {
          var tcs = new TaskCompletionSource<string>();
-         submissionMap.Add(id, tcs);
+         
          // Post in queue, and return immediately
          // The pool/deque will "call us back" (set the status) when finished
+         SnippetDataRepository repository;
+         DomainPool domainPool;
 
-         ThreadPool.QueueUserWorkItem((arg) => {
-
-            Thread.Sleep(1000);
-            tcs.SetResult("Done " + id);
-
-         });
+         var snippetData = repository.Get(Guid.Parse(snippetId));
+         
+         domainPool.SubmitSnippet(new SnippetInfo() {
+            assemblyFile = snippetData.AssembyBytes,
+            mainTypeName = SnippetData.SnippetTypeName,
+            methodName = SnippetData.SnippetMethodName,
+            submissionId = Guid.NewGuid().ToString()
+         }, (SnippetResult result) =>  tcs.SetResult(JsonConvert.SerializeObject(result)));
 
          return tcs.Task;
       }
 
       public static async void HandleConnection(Socket socket) {
          try {
-            string command = "";
-            while (socket.Connected && command.IndexOf("<EOF>") == -1) {
-               command = await socket.ReceiveAsync();
+            while (socket.Connected) {               
+               var command = await socket.ReceiveAsync();
+               if (command.IndexOf("<EOF>") != -1) {
+                  break;
+               }
 
-               int submissionId = random.Next();
-
-               // Do stuff
-               string result = await DoStuffAndReturnWhenIdFinished(submissionId);
-
-               Debug.Assert(result.Equals("Done " + submissionId));
-
+               string result = await DoStuffAndReturnWhenIdFinished(command);
                await socket.SendAsync(result, true);
             }
          }
