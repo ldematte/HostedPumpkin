@@ -59,20 +59,27 @@ namespace SimpleHostRuntime {
          }
       }
 
-      private Task<string> DoStuffAndReturnWhenIdFinished(string snippetId) {
-         var tcs = new TaskCompletionSource<string>();
+      private Task<SnippetResult> DoStuffAndReturnWhenIdFinished(string snippetId) {
+         // Use a TCS for a Task without a "thread"
+         var tcs = new TaskCompletionSource<SnippetResult>();
          
-         // Post in queue, and return immediately
-         // The pool/deque will "call us back" (set the status) when finished
-         var snippetData = repository.Get(Guid.Parse(snippetId));
-         
-         domainPool.SubmitSnippet(new SnippetInfo() {
-            assemblyFile = snippetData.AssembyBytes,
-            mainTypeName = SnippetData.SnippetTypeName,
-            methodName = SnippetData.SnippetMethodName,
-            submissionId = Guid.NewGuid().ToString()
-         }, (SnippetResult result) =>  tcs.SetResult(JsonConvert.SerializeObject(result)));
+         try {
+            // Post in queue, and return immediately
+            // The pool/deque will "call us back" (set the status) when finished
+            var snippetData = repository.Get(Guid.Parse(snippetId));
+            var snippetInfo = new SnippetInfo() {
+                  assemblyFile = snippetData.AssembyBytes,
+                  mainTypeName = SnippetData.SnippetTypeName,
+                  methodName = SnippetData.SnippetMethodName,
+                  submissionId = Guid.NewGuid().ToString()
+               };
 
+            domainPool.SubmitSnippet(snippetInfo, tcs);
+         }
+         catch (Exception ex) {
+            tcs.TrySetException(ex);
+         }
+         // Return immediately, with the task we can await on
          return tcs.Task;
       }
 
@@ -84,8 +91,9 @@ namespace SimpleHostRuntime {
                   break;
                }
 
-               string result = await DoStuffAndReturnWhenIdFinished(command);
-               await socket.SendAsync(result, true);
+               var result = await DoStuffAndReturnWhenIdFinished(command);
+               var jsonResult = JsonConvert.SerializeObject(result);
+               await socket.SendAsync(jsonResult, true);
             }
          }
          catch (Exception ex) {
