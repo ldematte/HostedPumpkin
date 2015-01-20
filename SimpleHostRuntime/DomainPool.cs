@@ -45,7 +45,7 @@ namespace SimpleHostRuntime {
       Thread watchdogThread;
       BlockingCollection<SnippetInfo> snippetsQueue = new BlockingCollection<SnippetInfo>();
       // Submission id to continuation
-      ConcurrentDictionary<string, Action<SnippetResult>> submissionMap = new ConcurrentDictionary<string, Action<SnippetResult>>();
+      ConcurrentDictionary<string, TaskCompletionSource<SnippetResult>> submissionMap = new ConcurrentDictionary<string, TaskCompletionSource<SnippetResult>>();
 
       bool isExiting = false;
 
@@ -356,9 +356,9 @@ namespace SimpleHostRuntime {
                    
                      // Return the result to the caller
                      if (!String.IsNullOrEmpty(snippetToRun.submissionId)) {
-                        var continuation = submissionMap[snippetToRun.submissionId];
-                        // TODO: cross-thread...?
-                        continuation(result);
+                        var completion = submissionMap[snippetToRun.submissionId];
+                        // TCS is thread-safe (can be called cross-thread)
+                        completion.TrySetResult(result);
                      }
 
                      if (recycleDomain) {
@@ -390,7 +390,7 @@ namespace SimpleHostRuntime {
          SubmitSnippet(snippetInfo);
       }         
 
-      internal void SubmitSnippet(SnippetInfo snippetInfo, Action<SnippetResult> continuation) {
+      internal void SubmitSnippet(SnippetInfo snippetInfo, TaskCompletionSource<SnippetResult> completion) {
          // check if we need to re-introduce some domains in the pool
          if (Interlocked.Read(ref numberOfThreadsInPool) < NumberOfDomainsInPool) {
             // A sort of "double-check optimization": we enter here only if there is a shortage of threads/domains, but
@@ -413,8 +413,8 @@ namespace SimpleHostRuntime {
          }
 
          // Store the continuation _before_ adding the snippet info the the processing queue
-         if (!String.IsNullOrEmpty(snippetInfo.submissionId) && continuation != null) {
-            submissionMap[snippetInfo.submissionId] = continuation;
+         if (!String.IsNullOrEmpty(snippetInfo.submissionId) && completion != null) {
+            submissionMap[snippetInfo.submissionId] = completion;
          }
          snippetsQueue.Add(snippetInfo);
       }
