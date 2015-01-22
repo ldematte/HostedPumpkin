@@ -266,7 +266,7 @@ On unload, if something wrong happens (the unload has problem too) we flag the s
 This is the same approach followed by IIS and by the SQL Server CLR, so we are pretty confident that it will be safe. 
 For example, IIS unloads the domain of a webapp after a (default of) 20 minutes of inactivity. By default, IIS will recycle the process when it reaches some limit, and it will also start a new one and "phase over" all incoming requests until the old one is unused, in order to to minimize disruption.
 
-So, we structured the core project as a pair of process: a monitor and a (pool of) workers. The workers are CLR hosts, and they keep track of the snippet “execution” state in each AppDomain (states can be: `Waiting, Running, Finished, Timed-out, Error, Zombie`).
+So, we structured the core project as a pair of process: a **Supervisor** and a (pool of) workers. The workers are **CLR hosts** (see first picture). Each host keeps track of the snippet state in each AppDomain (states can be: `Waiting, Running, Finished, Timed-out, Error, Zombie`).
 
 The normal cycle (`Waiting -> Running -> Finished`) leads to a “free” AppDomain, that can be reused to run a new snippet (after running a GC and assuring that no memory was leaked/is still allocated in the AppDomain). 
 The AppDomain state cycles back (`Finished -> Waiting`)
