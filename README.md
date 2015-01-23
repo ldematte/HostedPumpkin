@@ -3,7 +3,7 @@
 
 Proof-Of-Concept (POC) for the submission, compilation and execution of C# code snippets.
 
-The solution is composed by the following sub-project:
+The solution is composed by the following sub-projects:
 
 - The main project is a unmanaged C++ project, which hosts the CLR using the Hosting API. The Host uses two helper assemblies: 
  - a custom [AppDomainManager](https://msdn.microsoft.com/en-us/library/system.appdomainmanager(v=vs.110).aspx) (project _SimpleHostRuntime_)
@@ -69,12 +69,12 @@ w.r.t control at execution time, it is possible to act in three ways:
 
 ### Control at compilation time
 
-One possibility is to pre-process the source code, at compilation time, to recognize, remove, and inject control "probes" inside the code.
+When a snippet is submitted and compiled, we could pre-process its source code to recognize patterns, remove "unsafe" code, and inject control "probes" inside the code.
 These "probes" can then be used to monitor resource usage (i.e. allocation, CPU usage, thread creation, ...). 
 Classes that we deem unsafe can either be forbidden (raising an error and rejecting the snippet), or replaced.
 
-We considered [Roslyn](http://roslyn.codeplex.com/) the new (and open-source) C# compiler, but discarded it, as one requirement is to let the user choose different, older, C# versions.
-We the used the `CodeDOM` compiler, which is just a managed wrapper around the actual `csc.exe` (of which there are multiple instances on a machine, one for each SDK version).
+We considered [Roslyn](http://roslyn.codeplex.com/), the new (and open-source) C# compiler, but discarded it, as one of the requirements was to let the user choose different, older, C# versions.
+We then used the `CodeDOM` compiler, which is just a managed wrapper around the actual `csc.exe` (of which there are multiple instances on a machine, one for each SDK version).
 
 ### Control at execution time
 
@@ -87,31 +87,30 @@ AppDomain sandboxing helps with the security aspect, but not for the resource co
 
 Building a custom CLR host means running the CLR (and the snippets) inside our own executable, which is notified of several events and acts as a proxy between the managed code and several unmanaged resources, like tasks (threads) and memory.
 
-Microsoft provides an [Hosting API](http://msdn.microsoft.com/en-us/library/dd380850(v=vs.110).aspx), which is used for very similar purposes (protection and enforcement) by ASP.NET and SQL Server
-For example, you can control and replace all the native implementations of ["task-related" functions](http://msdn.microsoft.com/en-us/library/ms164562(v=vs.110).aspx)
+Microsoft provides an [Hosting API](http://msdn.microsoft.com/en-us/library/dd380850(v=vs.110).aspx), which is used for very similar purposes (protection and enforcement) by ASP.NET and SQL Server.
+For example, you can control and replace all the native implementations of ["task-related" functions](http://msdn.microsoft.com/en-us/library/ms164562(v=vs.110).aspx); SQL Server uses this API to run .NET code using his custom scheduler.
 
 #### Debugging and CLR Profiling API
 
-These API (the [Managed Debugging API](https://msdn.microsoft.com/en-us/library/vstudio/bb384605(v=vs.90).aspx), [ClrMD](http://blogs.msdn.com/b/dotnet/archive/2013/05/01/net-crash-dump-and-live-process-inspection.aspx?) and CLR Profiling API (see [1](http://msdn.microsoft.com/en-us/library/bb384493.aspx) and  [2](http://msdn.microsoft.com/en-us/library/dd380851(v=vs.110).aspx)) give you plenty of control: you can "see" and "do" everything that a debugger sees or does.
+These API (the [Managed Debugging API](https://msdn.microsoft.com/en-us/library/vstudio/bb384605(v=vs.90).aspx), [ClrMD](http://blogs.msdn.com/b/dotnet/archive/2013/05/01/net-crash-dump-and-live-process-inspection.aspx?) and the CLR Profiling API (see [1](http://msdn.microsoft.com/en-us/library/bb384493.aspx) and  [2](http://msdn.microsoft.com/en-us/library/dd380851(v=vs.110).aspx)) give plenty of control: you can "see" and "do" everything that a debugger sees or does.
 
-This includes step-by-step execution, thread creation, exit, on-the-fly IL rewriting (you are notified when a method is JIT-ed and you can modify the IL stream before JIT), effectively gaining complete control on the debuggee.
-
+This includes step-by-step execution, notifications about thread creation and destruction, assembly and DLL load,  on-the-fly IL rewriting (you are notified when a method is JIT-ed and you can modify the IL stream before JIT); you  effectively gain complete control on the debuggee.
 
 The POC
 -------
 
-We divided the process in two: _Snippet submission_ and *snippet execution*.
-At submission time, a snippet is compiled using `csc.exe` (through the `CodeDOM` classes).
+We divided the solution in two main (logical) steps: *snippet submission* and *snippet execution*.
+As we have discussed above, a snippet is compiled using `csc.exe` (through the `CodeDOM` classes); however, there is more going on during this step.
 
 ### Snippet submission
 
-A first attempt was made using only managed resources; this approach was based on isolation through AppDomains and supervising through some "probes": methods which could have been problematic, for example all constructors, all thread functions/delegates, etc. where patched (at IL level) so that they added some "fail-safes" (`try`-`catch` to avoid unhandled exceptions, for example) and code to monitor resource usage.
+A first attempt to tackle the whole problem was made using only managed resources; this approach was based on isolation through AppDomains, while supervision on resource usage was done through some "probes", injected at submission time. Methods which could have been problematic, for example all constructors, all thread functions/delegates, etc. where patched (at IL level) in order to add some "fail-safes" (global `try`-`catch` to avoid unhandled exceptions, for example) and to add code for monitoring resource usage.
 
-The _snippet submission_ part was considerably prominent: execution was protected by either .NET security (AppDomain sandbox) or our own injected code (for the resource usage part).
+In this first POC the _snippet submission_ part was considerably prominent: execution was protected by either .NET security (AppDomain sandbox) or our own injected code (for the resource usage part).
 
 Since compilation with `CodeDOM` is a black box, and we could not use Roslyn due to other requirements, we used [Mono.Cecil](https://github.com/jbevain/cecil) to inspect and patch the IL code.
 
-We then went for a different approach (adding Hosting into the mix), but the submission part still uses Cecil to inspect and rewrite code (substituting type and functions with our own; for example, we use it to "redirect" calls to `Console.WriteLine` to a memory buffer).
+We then went for a different approach (adding Hosting into the mix), but the submission part still uses Cecil to inspect and rewrite code (for type/method/assembly whitelistin, or to substitute some types and functions with our own; for example, we use it to "redirect" calls to `Console.WriteLine` to a memory buffer).
 
 ###Snippet execution
 
@@ -122,32 +121,34 @@ They are also a nice compromise in terms of balancing performance/scalability an
 
 Reusing and sharing processes and threads has a big advantage in terms of startup speed, resource usage and scalability. The price is that you lose the nice OS-provided isolation  and OS-provided cleanup.
 
-We implemented an AppDomain pool, in which each AppDomain follows a series of policies to decide if it can be reused for another snippet execution, recycled (unloaded and replaced by a new one) and to track resource usage and faults.
+We implemented an AppDomain pool, in which each AppDomain follows a series of policies to decide if it can be reused for another snippet execution, or if it needs to be recycled (unloaded and replaced by a new one) and to track resource usage and faults.
 
-Resource tracking is done by the Host interfaces, with the help of a `HostContext` class; faults are detected using a combination of managed code inside the the `AppDomainManager` and in the Host, by using escalation policies (more later)
+Resource tracking is done by the Host interfaces, with the help of a `HostContext` class; faults are detected using a combination of managed code inside the the `AppDomainManager` and in the Host, by using escalation policies (more on these policies later).
 
 ![](https://github.com/ldematte/SimpleHost/blob/master/resources/ThreadFlow.png)
 
 
 ##### Host interfaces, HostContext 
 
-We implemented all the available Host Manager interfaces (see [1](https://msdn.microsoft.com/en-us/library/ms404385(v=vs.110).aspx) and [2](https://msdn.microsoft.com/en-us/magazine/cc163567.aspx)). If the host implements a manager, the CLR does not create the associated resource (thread, memory, etc.) by itself, but offloads its management to the Host. So we intercepted virtually all calls that the code could make to the CLR and "re-implement" them with unmanaged primitives. 
+In order to gain as much insight as possible on the various events happening inside the CLR during the execution of our snippets, we implemented all the available Host Manager interfaces (see [1](https://msdn.microsoft.com/en-us/library/ms404385(v=vs.110).aspx) and [2](https://msdn.microsoft.com/en-us/magazine/cc163567.aspx)). 
 
-In short, the CLR inside is full of places where it either ask the host to provide some functionality, or do it directly if no host is provided. An example from (managed) thread creation:
+If the host implements a manager, the CLR does not create the associated resource (thread, memory, etc.) by itself, but offloads its management to the Host. So we intercepted virtually all calls that the code could make to the CLR and "re-implement" them with unmanaged primitives. 
+
+In short, the CLR inside is full of places where it either asks the host to provide some functionality, or do it directly if no host is provided. An example from (managed) thread creation:
 
     IHostTaskManager *hostTaskManager = CorHost2::GetHostTaskManager();
     if (hostTaskManager) {
        hostTaskManager->GetCurrentTask(&curHostTask);
     }
 
-The interfaces provided by the Hosting API are implemented in the more straightforward way possible, with some exceptions. The goal is to mimic really closely what the "standard" (non-hosted) version of the CLR does. Obviously, we add code to record what is going on: the goal is to collect resource usage, per snippet, in order to cap them, or  prevent some events from happening (setting thread priority above normal? No no) and react to problems (a snippet is creating thousands of threads? Stop it and notify the `AppDomainManager`: it will try to Abort it and then (eventually) escalate the issue).
+The interfaces provided by the Hosting API are implemented in the more straightforward way possible, with some exceptions. The goal is to mimic really closely what the "standard" (non-hosted) version of the CLR does. Obviously, we add code to record what is going on: the goal is to collect resource usage, per snippet, in order to cap them, or  prevent some events from happening (setting thread priority above normal? No-no!) and react to problems (a snippet is creating thousands of threads? Stop it and notify the `AppDomainManager`: it will try to Abort it and then (eventually) escalate the issue).
 
-All the classes implementing the hosting interfaces and managers receive a `HostContext`, which records information about resources in order to track them. It tracks AppDomain - Thread relationships(*), Managed threads (called `CLRTask`s in the Hosting API) - Native thread relationships (called `HostTask`s in the Hosting API).
+All the classes implementing the Host Manager interfaces receive a reference to a `HostContext` class, which records information about resources in order to track them. It tracks `AppDomain <-> Thread` relationships(*), `Managed thread` (called `CLRTask`s in the Hosting API) `<-> Native thread` relationships (called `HostTask`s in the Hosting API), `Parent <-> Child` relationships between threads, `AppDomain <-> Memory`, ...
 
-`HostContext` is a coclass, so it can be accessed from managed code(**). This way, it is possible to get information about the state of the host from the `AppDomainManager`; see for example [`HostContext::GetThreadCount()`](https://github.com/ldematte/SimpleHost/blob/master/HostContext.cpp#L58)
+`HostContext` is a coclass, so it can be accessed from managed code(**). This way, it is possible to get information about the state of the host from the `AppDomainManager`; see for example [`HostContext::GetThreadCount()`](https://github.com/ldematte/SimpleHost/blob/master/HostContext.cpp#L58).
 
-(*) this is possible because we create threads and AppDomains in a controlled way: the only AppDomains allowed are our sandbox; each snippet runs in one sandbox; we create a thread before creating the new AppDomain, and therefore there is a controlled Thread-AppDomain relationship. 
-It is indirect, but it is the only documented way (there are undocumented way that use the Thread TEB to get the current AppDomain for each thread, but we tried to avoid that).
+(*) this is possible because we create threads and AppDomains in a controlled way: the only AppDomains allowed are our sandboxes; each snippet runs in one sandbox; we create a thread before creating the new AppDomain, and therefore there is a controlled `Thread <-> AppDomain` relationship. 
+It is indirect, but it is the only documented way to get this information (there are undocumented way that use the Thread TEB to get the current AppDomain for each thread, but we preferred to not rely on undocumented features).
 
 (**) Managed-unmanaged interactions, especially between hosting code (`AppDomainManager` and HostContext, for example) can be tricky. We solved it by using the simplest form of COM interop: direct call of `IUnkwnown` interface pointers. We made the `AppDomainManager` COM visible, and we made the `HostContext` a coclass. Special care is needed when there are multiple managed-unmanaged transitions (see next section).
 
@@ -155,21 +156,20 @@ It is indirect, but it is the only documented way (there are undocumented way th
 
 The main host manager, `HostCtrl`, has a callback method used by the CLR to inform the host that a AppDomain has been created. The first one is the default AppDomain; we save a pointer to its interface, and use it to call back into managed code (to request the execution of a snippet, for example, or to notify some external -not initiated by our code- events). Notice that you can call into managed code only at specific times (e.g. you cannot call it from inside one of the manager methods, like `CreateTask`, as this will create an unbalanced sequence of managed-unmanaged transactions).
 
-For this we implemented a method on `HostContext` ([`HostContext::GetLastMessage`](https://github.com/ldematte/HostedPumpkin/blob/master/HostContext.h)), that acts as a classical event pump: you call it, it blocks, and returns either after a timeout (0 to Infinite) or when an event is present. So the managed code can call this method, and receive notifications back from the unmanaged portion of the Host safely.
+For this reason, we implemented a method on `HostContext` ([`HostContext::GetLastMessage`](https://github.com/ldematte/HostedPumpkin/blob/master/HostContext.h)), that acts as a classical event pump: you call it (from managed code), it blocks, and returns either after a timeout (0 to Infinite) or when an event is present - if you ever did Win32 programming that should sound familiar. So out `AppDomainManager` (the only managed "Manager" in the CLR Hosting framework) can call this method, block, and receive notifications back from the unmanaged portion of the Host in a safe way.
 
 The `AppDomainManager` for the default AppDomain creates the [`DomainPool`](https://github.com/ldematte/HostedPumpkin/blob/master/SimpleHostRuntime/DomainPool.cs), which creates, maintains and check the status of a pool of threads, each of which immediately creates and enter a new sandbox AppDomain, and waits for a snippet to execute.
 
 ##### Escalation Policy
 
-We use escalation policies to create our Error state behaviour. 
-The defaults are not good in our case: some operations do not time out at all, or the default behaviour is to take no action; other operations take a safer road, which is too extreme in our case. For example, the default policy for a uncaught exception in a thread is to bring down the whole process, and we surely do not want that.
+We use escalation policies to create our error state behaviour. 
+The defaults are not good in our case: some operations do not time out at all, or the default behaviour is to take no action; other operations take a safer road, which is too extreme in our case. For example, the default policy for an uncaught exception in a thread is to bring down the whole process, and we surely do not want that.
 
 The hosting API offers a one-level escalation: you say "try that; if it works, OK. Otherwise, do something else".
 
-As an example, let's consider 
-For example, consider what happens if we want to terminate a snippet which is taking too much CPU: we abort its thread. 
+As an example, let's consider what happens if we want to terminate a snippet which is taking too much CPU: we abort its thread. 
 
-The thread may not exit cleanly; by default an abort that the finally blocks (and the finalizers) get a chance to run. Suppose one goes into an infinite loop (this is a scenario I tested, see the [TestApplication project](https://github.com/ldematte/HostedPumpkin/blob/master/TestApplication/Program.cs))
+The thread may not exit cleanly; by default, after a `Thread.Abort`, the finally blocks and the finalizers get a chance to run. Suppose one goes into an infinite loop (this is a scenario I tested, see the [TestApplication project](https://github.com/ldematte/HostedPumpkin/blob/master/TestApplication/Program.cs))
 
     void Snippet() {
       try {
@@ -185,7 +185,7 @@ The thread may not exit cleanly; by default an abort that the finally blocks (an
 With the default runtime policy, that thread will never be aborted.
 The solution is to chain a series of escalation policies:
 
- 1. use `SetTimeoutAndAction` on `ICLRPolicyManager` (to specify, for example, appDomainUnload -> 5 seconds -> (timeout?) rudeAppDomainUnload (which terminates all the threads)
+1. use `SetTimeoutAndAction` on `ICLRPolicyManager` (to specify, for example, appDomainUnload -> 5 seconds -> (timeout?) rudeAppDomainUnload (which terminates all the threads)
 2. Register a `IHostPolicyManager`, and get notifications of these events (through the `OnError` callback), so we can mark the relevant AppDomain as Zombie, and decide if we need further escalation.
 
 The escalation policies are similar to what SQL Server implements:
@@ -218,16 +218,16 @@ It is obtained through three different mechanisms:
 - At submission time, by using Cecil [CheckAssemblyAgainstWhitelist](https://github.com/ldematte/HostedPumpkin/blob/master/Pumpkin.Submission/SnippetCompiler.cs) with a whitelist of types, assemblies and methods, for a finer-grained control.
 
 Also, we forbid snippet threads to adjust their priority.
-Fortunately, Thread.SetPriority is wired to one of the host interfaces([IHostTask::SetPriority](https://github.com/ldematte/SimpleHost/blob/master/Threading/Task.cpp#L96)), and we prevent them from getting high priority.
+Fortunately, `Thread.SetPriority` is wired to one of the host interfaces ([IHostTask::SetPriority](https://github.com/ldematte/SimpleHost/blob/master/Threading/Task.cpp#L96)), and we prevent snippets from getting a high priority, simply ignoring the request (this is allowed by the Hosting API contract).
 
 #### Resources control
 
 Resource control is obtained through a combination of managed code, **AppDomain sandboxing**, **Escalation policies** and tracking inside the **memory and concurrency managers** (`IHostMemoryManager` and `IHostTaskManager`).
 
 AppDomains create data boundaries, but not execution boundaries. 
-Controlling memory inside an AppDomain is easy, controlling execution is more.. difficult: since AppDomain sandboxing offers little nothing out of the box, what we do is to have a spawn a separate thread (with priority higher than the snippet threads, which we limit thanks to the managers) that checks the snippet status periodically.
+Controlling memory inside an AppDomain is easy, controlling execution is more... difficult: since AppDomain sandboxing offers little nothing out of the box, what we do is to spawn a separate thread (with priority higher than the snippet threads, which we limit thanks to the managers) that checks the snippet status periodically.
 
-In particular, it detects if a snippet is running for too long (a possible extension: check also if it used too much CPU time) and if so it aborts its thread. 
+In particular, this "watchdog" thread detects if a snippet is running for too long (a possible extension: check also if it used too much CPU time) and if so it aborts its thread. 
 Inside the managed code: each thread in the domain pool catches the `ThreadAbortException`, resets it (note: snippets cannot do that, CAS polices we set up forbid this operation), records the event and then proceed normally, checking the status.
 
 If the thread does not exits cleanly, we rely on **escalation policies** (see above).
