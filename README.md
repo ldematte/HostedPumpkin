@@ -242,10 +242,9 @@ A final word on "too many threads are created": if a thread is spawning "fork bo
 
 #### Performances
 
-Reusing and sharing processes and threads has a big advantage in terms of startup speed, resource usage and scalability. The price is that you lose the nice OS-provided isolation (but the CLR, AppDomains and our own checks should suffice) and OS-provided cleanup. 
+Reusing and sharing processes and threads has a big advantage in terms of startup speed, resource usage and scalability. The price is that you lose the nice OS-provided isolation (but the CLR, AppDomains and our own checks should suffice), as well as OS-provided cleanup. 
 
-We keep a pool of AppDomains, running each snippet inside one of the available ones, so we even amortize the cost of AppDomain creation, not only the cost of Process or Thread creation.
-
+We keep a pool of AppDomains, and we run each snippet inside one of the available AppDomains, so we even amortize the cost of AppDomain creation, not only the cost of Process or Thread creation.
 
 #### Safety
 
@@ -261,12 +260,12 @@ Also, in our code we take extra steps to ensure that a malicious snippet cannot 
 
 Problematic snippets will be detected and the domain they are currently hosted into will be unloaded, reducing the chance that they can impact our code or other snippets.
 
-On unload, if something wrong happens (the unload has problem too) we flag the snippet as “really troublesome”, and then we leak the domain. We keep an eye on the memory and on the number of “zombies”, and when a threshold is reached, cycle the process.
+On unload, if something wrong happens (the unload has problems too) we flag the snippet as “really troublesome”, and then we leak the domain. We keep an eye on the memory and on the number of “zombies”, and when a threshold is reached, we cycle (kill and restart) the host process.
 
 This is the same approach followed by IIS and by the SQL Server CLR, so we are pretty confident that it will be safe. 
 For example, IIS unloads the domain of a webapp after a (default of) 20 minutes of inactivity. By default, IIS will recycle the process when it reaches some limit, and it will also start a new one and "phase over" all incoming requests until the old one is unused, in order to to minimize disruption.
 
-So, we structured the core project as a pair of process: a **Supervisor** and a (pool of) workers. The workers are **CLR hosts** (see first picture). Each host keeps track of the snippet state in each AppDomain (states can be: `Waiting, Running, Finished, Timed-out, Error, Zombie`).
+This is the reason why we structured the core project as a pair of processes: a **Supervisor**, and a (pool of) workers. The worker(s) are **CLR hosts** (see the first picture of this document). Each host keeps track of the snippet state in each AppDomain (states can be: `Waiting, Running, Finished, Timed-out, Error, Zombie`).
 
 The normal cycle (`Waiting -> Running -> Finished`) leads to a “free” AppDomain, that can be reused to run a new snippet (after running a GC and assuring that no memory was leaked/is still allocated in the AppDomain). 
 The AppDomain state cycles back (`Finished -> Waiting`)
@@ -283,3 +282,4 @@ We can think of three policies for snippets flagged as `critical` in the DB:
 - signal them for review
 - execute them in a completely separate process, and exit the process immediately after the snippet execution to be sure to free all resources.
 
+These policies are not currently implemented, but can be easily added to the solution.
