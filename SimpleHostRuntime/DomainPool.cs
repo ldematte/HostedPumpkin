@@ -72,14 +72,15 @@ namespace SimpleHostRuntime {
 
       private void InitializeDomainPool() {
 
-         watchdogThread = new Thread(WatchdogThreadFunc);
-         watchdogThread.Start();
+         watchdogThread = new Thread(WatchdogThreadFunc);        
 
          for (int i = 0; i < NumberOfDomainsInPool; ++i) {
             poolDomains[i] = new PooledDomainData();
             var thread = CreateDomainThread(i);
             thread.Start();
          }
+
+         watchdogThread.Start();
       }
 
 

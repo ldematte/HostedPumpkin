@@ -26,7 +26,10 @@ int main(int argc, char* argv [])
    string assemblyFileName;
    string typeName;
    string methodName;
+   string snippetDataBase;
    bool useSandbox = true;
+   bool testMode = false;
+   int serverPort = 4321;
 
    CmdLine cmd("Simple CLR Host", ' ', "1.0");
    try {     
@@ -34,24 +37,47 @@ int main(int argc, char* argv [])
       ValueArg<string> clrVersionArg("v", "clrversion", "CLR version to use", true, "v2.0.50727", "string");
       cmd.add(clrVersionArg);
 
-      ValueArg<string> assemblyFileNameArg("a", "assembly", "The assembly file name", true, "", "string");
+      SwitchArg testModeArg("t", "test", "Run in test mode (specify an assembly file, type/class and method)");
+
+      ValueArg<string> assemblyFileNameArg("a", "assembly", "The assembly file name", false, "", "string");
       cmd.add(assemblyFileNameArg);
 
-      ValueArg<string> typeNameArg("t", "type", "The type name which contains the method to invoke", false, "", "string");
+      ValueArg<string> typeNameArg("c", "type", "The type name which contains the method to invoke", false, "", "string");
       cmd.add(typeNameArg);
 
       ValueArg<string> methodNameArg("m", "method", "The method to invoke", false, "", "string");
       cmd.add(methodNameArg);
 
+      ValueArg<string> snippetDataBaseArg("d", "database", "The path of the SQL CE database that holds the snippets", false, "", "string");
+      cmd.add(snippetDataBaseArg);
+
+      ValueArg<int> serverPortArg("p", "port", "The port on which this Host will listen for snippet execution requests", false, 4321, "int");
+      cmd.add(serverPortArg);
+
       cmd.parse(argc, argv);
 
-      if (typeNameArg.isSet() != methodNameArg.isSet()) {
-         CmdLineParseException error("You should specify both the type and method name, or neither");
-         try {            
-            cmd.getOutput()->failure(cmd, error);
+      testMode = testModeArg.getValue();
+
+      if (testMode) {
+         if (!typeNameArg.isSet() || !assemblyFileNameArg.isSet()) {
+            CmdLineParseException error("If you run in test mode, you should specify both the type and assembly file name");
+            try {
+               cmd.getOutput()->failure(cmd, error);
+            }
+            catch (ExitException &ee) {
+               exit(ee.getExitStatus());
+            }
          }
-         catch (ExitException &ee) {
-            exit(ee.getExitStatus());
+      }
+      else {
+         if (!snippetDataBaseArg.isSet()) {
+            CmdLineParseException error("You should specify a valid DB file name");
+            try {
+               cmd.getOutput()->failure(cmd, error);
+            }
+            catch (ExitException &ee) {
+               exit(ee.getExitStatus());
+            }            
          }
       }
 
@@ -60,6 +86,8 @@ int main(int argc, char* argv [])
       assemblyFileName = assemblyFileNameArg.getValue();
       typeName = typeNameArg.getValue();
       methodName = methodNameArg.getValue();
+      snippetDataBase = snippetDataBaseArg.getValue();
+      serverPort = serverPortArg.getValue();
    }
    catch (ArgException &e) {
       cerr << "Error: " << e.error() << " for arg " << e.argId() << endl;      
@@ -184,7 +212,11 @@ int main(int argc, char* argv [])
    std::list<AssemblyInfo> hostAssemblies;
    std::wstring currentDir = CurrentDirectory();
    AssemblyInfo appDomainManager(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\SimpleHostRuntime.dll", L"");
+   AssemblyInfo pumpkinData(L"Pumpkin.Data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=msil", currentDir + L"\\Pumpkin.Data.dll", L"");
+   AssemblyInfo pumpkinMonitor(L"Pumpkin.Monitor, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\Pumpkin.Monitor.dll", L"");
    hostAssemblies.push_back(appDomainManager);
+   hostAssemblies.push_back(pumpkinData);
+   hostAssemblies.push_back(pumpkinMonitor);
 
    // Construct our host control object.
    DHHostControl* hostControl = new DHHostControl(clr, hostAssemblies);
@@ -218,23 +250,37 @@ int main(int argc, char* argv [])
    int retVal = 0;
    HRESULT hrExecute;
 
-   bstr_t assemblyName = toBSTR(assemblyFileName);  
-
    hrExecute = domainManager->RegisterHostContext(hostControl->GetHostContext());
    
-   bstr_t type = toBSTR(typeName);
-   bstr_t method = toBSTR(methodName);
-   
-   // TODO!!!
-   hrExecute = domainManager->raw_RunTests(assemblyName, type, method);
+   if (testMode) {
+      bstr_t assemblyName = toBSTR(assemblyFileName);
+      bstr_t type = toBSTR(typeName);
+      bstr_t method = toBSTR(methodName);
+      if (methodName.empty()) {
+         hrExecute = domainManager->raw_RunTests(assemblyName, type);
+      }
+      else {
+         hrExecute = domainManager->raw_RunTest(assemblyName, type, method);
+      }
 
-   if (!SUCCEEDED(hrExecute)) {
-      Logger::Critical("Execution of method raw_RunTests failed: 0x%x", hrExecute);      
-      retVal = -1;
+      if (!SUCCEEDED(hrExecute)) {
+         Logger::Critical("Execution of tests failed: 0x%x", hrExecute);
+         retVal = -1;
+      }
+
+      getchar();
    }
+   else {
+      bstr_t snippetDataBaseName = toBSTR(snippetDataBase);
+      hrExecute = domainManager->raw_StartListening(serverPort, snippetDataBaseName);
 
+      if (!SUCCEEDED(hrExecute)) {
+         Logger::Critical("Execution of tests failed: 0x%x", hrExecute);
+         retVal = -1;
+      }
 
-   getchar();
+      Logger::Critical("Shutting down");
+   }
 
    // Stop the CLR and cleanup.
    hostControl->ShuttingDown();

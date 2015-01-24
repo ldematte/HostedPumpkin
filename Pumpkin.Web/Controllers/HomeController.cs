@@ -19,7 +19,7 @@ namespace Pumpkin.Web.Controllers {
 
 
       public ActionResult Index() {
-         var snippets = repository.All().Select(s => new Snippet { Id = s.Id.ToString(), Source = s.SnippetSource });
+         var snippets = repository.All().Select(s => new Snippet { Id = s.Id.ToString(), Source = s.SnippetSource, StatusColor = s.SnippetHealth.ToColor() });
          return View(snippets);
       }
 
@@ -73,20 +73,26 @@ namespace Snippets {{
       [HttpPost]
       public ActionResult SubmitSnippet(String usingDirectives, String snippetSource) {
 
-         var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(
-            String.Format(snippetBody, usingDirectives, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName, snippetSource), 
-            Server.MapPath("App_Data"));
+         try {
+            var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(
+               String.Format(snippetBody, usingDirectives, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName, snippetSource),
+               Server.MapPath(@"~\App_Data"));
 
-         if (snippetAssembly.success) {
-            var patchedAssembly = SnippetCompiler.PatchAssembly(snippetAssembly.assemblyBytes, "Snippets." + SnippetData.SnippetTypeName);
+            if (snippetAssembly.success) {
+               var patchedAssembly = SnippetCompiler.PatchAssembly(snippetAssembly.assemblyBytes, "Snippets." + SnippetData.SnippetTypeName);
 
-            repository.Save(usingDirectives, snippetSource, patchedAssembly);
+               repository.Save(usingDirectives, snippetSource, patchedAssembly);
 
-            return new HttpStatusCodeResult(204);
+               return new HttpStatusCodeResult(204);
+            }
+            else {
+               Response.StatusCode = 400;
+               return Json(snippetAssembly.errors);
+            }
          }
-         else {
-            Response.StatusCode = 400;
-            return Content(snippetAssembly.errors.First());
+         catch (Exception ex) {
+            Response.StatusCode = 500;
+            return Json(new string[] { "Internal error: ", ex.Message});
          }
       }
 

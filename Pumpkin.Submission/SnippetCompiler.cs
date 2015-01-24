@@ -48,10 +48,15 @@ namespace Pumpkin {
          var compilerResults = csc.CompileAssemblyFromSource(compilerParams, snippetSource, assemblyInfoCs);
          // TODO: handle compilation errors
 
+         var success = !compilerResults.Errors.HasErrors;
+         byte[] assemblyBytes = null;
+         if (success)
+            assemblyBytes = File.ReadAllBytes(compilerResults.PathToAssembly);
+
          return new SnippetCompilationResult() { 
-            assemblyBytes = File.ReadAllBytes(compilerResults.PathToAssembly),
+            assemblyBytes = assemblyBytes,
             snippetGuid = snippetGuid,
-            success = !compilerResults.Errors.HasErrors,
+            success = success,
             errors = compilerResults.Errors.Cast<CompilerError>().Select(e => e.ErrorText)
          };
       }

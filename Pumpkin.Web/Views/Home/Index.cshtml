@@ -33,7 +33,7 @@
 
             $.ajax("/Home/SubmitRequest", {
                type: "POST",
-               data: { snippetId: this.data("snippet-id"), connectionId: resultHubConnectionId }
+               data: { snippetId: $(this).data("snippet-id"), connectionId: resultHubConnectionId }
 
             }).done(function (data, textStatus, jqXHR) {
                if (jqXHR.status == 202) {
@@ -60,9 +60,10 @@
       <h3>Execute a snippet</h3>
       <dl>
          @foreach (var item in Model) {
-            <dt>@item.Id</dt>
+            <dt>Snippet: @item.Id &nbsp;</dt>
             <dd>
-               @item.Source<br />
+               Status: <div id="rectangle" style="background:@item.StatusColor;"></div>
+               <pre>@item.Source</pre>
                <button id="btnGo" data-snippet-id="@item.Id">Go!</button>
             </dd>
          }

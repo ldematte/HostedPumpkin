@@ -12,7 +12,7 @@ using Pumpkin.Data;
 using Newtonsoft.Json;
 
 namespace SimpleHostRuntime {
-   class SimpleHostServer {
+   public class SimpleHostServer {
 
       private readonly SnippetDataRepository repository;
       private readonly DomainPool domainPool;
@@ -69,7 +69,7 @@ namespace SimpleHostRuntime {
             // The pool/deque will "call us back" (set the status) when finished
             var snippetData = repository.Get(Guid.Parse(snippetId));
             var snippetInfo = new SnippetInfo() {
-                  assemblyFile = snippetData.AssembyBytes,
+                  assemblyFile = snippetData.AssemblyBytes,
                   mainTypeName = SnippetData.SnippetTypeName,
                   methodName = SnippetData.SnippetMethodName,
                   submissionId = Guid.NewGuid().ToString()

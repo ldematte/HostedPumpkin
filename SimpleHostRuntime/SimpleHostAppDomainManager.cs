@@ -55,8 +55,10 @@ namespace SimpleHostRuntime {
 
       void RegisterHostContext(IHostContext hostContext);
 
-      void RunSnippet(string assemblyFileName, string mainTypeName, string methodName);
-      void RunTests(string assemblyFileName, string mainTypeName, string methodNamePrefix);
+      void StartListening(int port, string snippetDataBaseName);
+
+      void RunTest(string assemblyFileName, string mainTypeName, string methodName);
+      void RunTests(string assemblyFileName, string mainTypeName);
 
       void OnMainThreadExit(int appDomainId, bool cleanExit);
    }
@@ -144,10 +146,10 @@ namespace SimpleHostRuntime {
          // and only once
          Debug.Assert(domainPool == null);
          SimpleHostAppDomainManager.hostContext = hostContext;
-         SimpleHostAppDomainManager.domainPool = new DomainPool(this);         
+         SimpleHostAppDomainManager.domainPool = new DomainPool(this);
       }     
  
-      public void RunSnippet(string assemblyFileName, string mainTypeName, string methodName) {
+      public void RunTest(string assemblyFileName, string mainTypeName, string methodName) {
          domainPool.SubmitSnippet(new SnippetInfo() {
             assemblyFile = System.IO.File.ReadAllBytes(assemblyFileName),
             mainTypeName = mainTypeName, 
@@ -155,35 +157,38 @@ namespace SimpleHostRuntime {
          });
       }
 
-      public void RunTests(string assemblyFileName, string mainTypeName, string methodNamePrefix) {
+      public void RunTests(string assemblyFileName, string mainTypeName) {
 
          byte[] rawAssembly = System.IO.File.ReadAllBytes(assemblyFileName);
          var assembly = Assembly.ReflectionOnlyLoad(rawAssembly);
 
          //Run a single test
-         var method = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
+         var methods = assembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).Single()
                .GetMethods(BindingFlags.Public | BindingFlags.Static)
-                  .Where(m => m.Name.StartsWith("SnippetTest12"))
-                  .Select(m => m.Name)
-                  .Single();
+                  .Where(m => m.Name.StartsWith("SnippetTest"))
+                  .Select(m => m.Name);
 
-         domainPool.SubmitSnippet(new SnippetInfo() {
-            assemblyFile = rawAssembly,
-            mainTypeName = mainTypeName,
-            methodName = method
-         });
+         foreach (var method in methods) {
+            domainPool.SubmitSnippet(new SnippetInfo() {
+               assemblyFile = rawAssembly,
+               mainTypeName = mainTypeName,
+               methodName = method
+            });
+         }
+      }
 
-         //var methods = assembly.GetType(mainTypeName).GetMethods(BindingFlags.Public | BindingFlags.Static)
-         //   .Where(m => m.Name.StartsWith(methodNamePrefix))
-         //   .Select(m => m.Name);
+      public void StartListening(int port, string snippetDataBaseName) {
+         // Call this only for the default appdomain
+         Debug.Assert(AppDomain.CurrentDomain.IsDefaultAppDomain());
+         // and only after initialization
+         Debug.Assert(domainPool != null);
 
-         //foreach (var method in methods) {
-         //   domainPool.SubmitSnippet(new SnippetInfo() {
-         //      assemblyFile = rawAssembly,
-         //      mainTypeName = mainTypeName,
-         //      methodName = method
-         //   });
-         //}
+         var repository = new SnippetDataRepository(snippetDataBaseName);
+         var hostServer = new SimpleHostServer(repository, domainPool);
+
+         var hostServerThread = new Thread(() => hostServer.StartListening());
+         hostServerThread.Start();
+         hostServerThread.Join();
       }
 
       internal bool GetHostMessage(int millisecondsTimeout, out HostEvent hostEvent) {

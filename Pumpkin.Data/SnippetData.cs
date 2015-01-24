@@ -3,9 +3,27 @@ using System.Collections.Generic;
 using System.Configuration;
 using System.Data;
 using System.Data.SqlServerCe;
+using System.IO;
 using System.Linq;
 
 namespace Pumpkin.Data {
+
+   public static class SnippetHealthExt {
+      public static string ToColor(this SnippetHealth health) {
+         switch (health) {
+            case SnippetHealth.Unknown:
+               return "white";
+            case SnippetHealth.Good:
+               return "green";
+            case SnippetHealth.Timeout:
+               return "gold";
+            case SnippetHealth.Fatal:
+               return "red";
+            default:
+               return "aliceblue";
+         }
+      }
+   }
 
    public enum SnippetHealth: int {
       Unknown = 0,
@@ -20,16 +38,29 @@ namespace Pumpkin.Data {
       public const string SnippetMethodName = "SnippetMain";
 
       public Guid Id { get; set; }
-      public byte[] AssembyBytes { get; set; }
+      public byte[] AssemblyBytes { get; set; }
       public string SnippetSource { get; set; }
       public string UsingDirectives { get; set; }
-      public int SnippetHealth { get; set; }
+      public SnippetHealth SnippetHealth { get; set; }
    }
 
    public class SnippetDataRepository {
+
+      private readonly string connectionString;
+
+      public SnippetDataRepository() {
+         connectionString = ConfigurationManager.ConnectionStrings["SnippetsDb"].ConnectionString;
+      }
+
+      public SnippetDataRepository(string databasePath) {
+         if (!File.Exists(databasePath))
+            throw new ArgumentException("Invalid database file", "databasePath");
+         connectionString = "DataSource=" + databasePath;
+      }
+
       // TODO: Cache connections and statements
-      private static SqlCeConnection GetOpenConnection() {
-         var connectionString = ConfigurationManager.ConnectionStrings["SnippetsDb"].ConnectionString;
+      private SqlCeConnection GetOpenConnection() {
+         
          var connection = new SqlCeConnection(connectionString);
          connection.Open();
          return connection;
@@ -52,9 +83,11 @@ namespace Pumpkin.Data {
 
                return new SnippetData() { 
                   Id = id, 
-                  AssembyBytes = assemblyBytes, 
+                  AssemblyBytes = assemblyBytes, 
                   SnippetSource = reader.GetString(2),
-                  SnippetHealth = reader.GetInt32(3) };
+                  UsingDirectives = reader.GetString(3),
+                  SnippetHealth = (SnippetHealth)reader.GetInt32(4)
+               };
             }
          }
          return null;
@@ -67,18 +100,18 @@ namespace Pumpkin.Data {
          using (var connection = GetOpenConnection()) {
             SqlCeCommand cmd = connection.CreateCommand();
 
-            cmd.CommandText = "INSERT INTO Snippets (Id, AssembyBytes, SnippetHealth) VALUES (?, ?, ?)";
+            cmd.CommandText = "INSERT INTO Snippets (Id, AssemblyBytes, SnippetSource, UsingDirectives, SnippetHealth) VALUES (?, ?, ?, ?, ?)";
 
-            cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.UniqueIdentifier));
-            cmd.Parameters.Add(new SqlCeParameter("AssembyBytes", SqlDbType.Image));
+            cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.NChar));
+            cmd.Parameters.Add(new SqlCeParameter("AssemblyBytes", SqlDbType.Image));
             cmd.Parameters.Add(new SqlCeParameter("SnippetSource", SqlDbType.NText));
-            cmd.Parameters.Add(new SqlCeParameter("UsingDirectives", SqlDbType.NVarChar));
+            cmd.Parameters.Add(new SqlCeParameter("UsingDirectives", SqlDbType.NText));
             cmd.Parameters.Add(new SqlCeParameter("SnippetHealth", SqlDbType.Int));
            
             cmd.Prepare();
 
             cmd.Parameters["Id"].Value = id.ToString();
-            cmd.Parameters["AssembyBytes"].Value = assemblyBytes;
+            cmd.Parameters["AssemblyBytes"].Value = assemblyBytes;
             cmd.Parameters["SnippetSource"].Value = source;
             cmd.Parameters["UsingDirectives"].Value = usings;
             cmd.Parameters["SnippetHealth"].Value = (int)SnippetHealth.Unknown;
@@ -118,10 +151,11 @@ namespace Pumpkin.Data {
                reader.GetBytes(1, 0, assemblyBytes, 0, assemblyBytes.Length);
 
                yield return new SnippetData() {
-                  Id = reader.GetGuid(0),
-                  AssembyBytes = assemblyBytes,
+                  Id = Guid.Parse(reader.GetString(0)),
+                  AssemblyBytes = assemblyBytes, 
                   SnippetSource = reader.GetString(2),
-                  SnippetHealth = reader.GetInt32(3)
+                  UsingDirectives = reader.GetString(3),
+                  SnippetHealth = (SnippetHealth)reader.GetInt32(4)
                };
             }
          }

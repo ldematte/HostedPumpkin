@@ -14,14 +14,24 @@
             contentType: "application/json",
             datatype: "text/plain",
             success: function (data) {
-               submissionResult.html(data);
+               submissionResult.html("Snippet compiled successfully!");
                submissionResult.removeClass(function (i, c) { (c.indexOf("alert") >= 0) });
                submissionResult.addClass("alert alert-success");
             },
             error: function (data) {
-               submissionResult.html(data);
+               
+               var ul = $("<ul>");
+               $.each(data.responseJSON, function (key, val) {
+                  ul.append("<li>" + val +"</li>");
+               });
+               submissionResult.html(ul);
                submissionResult.removeClass(function (i, c) { (c.indexOf("alert") >= 0) });
-               submissionResult.addClass("alert alert-danger");
+               if (data.status == 400) {
+                  submissionResult.addClass("alert alert-danger");
+               }
+               else {
+                  submissionResult.addClass("alert alert-warning");
+               }
             }
          });
       });
@@ -29,7 +39,7 @@
 </script>
 }
 
-<div class="col-md-6">
+<div class="col-md-12">
    <h3>Submit a new snippet</h3>
    <div id="submissionResult" role="alert"></div>
    <form id="snippetForm">
@@ -39,7 +49,7 @@
       </div>
       <div class="form-group">
          <label for="snippetInput">Snippet</label>
-         <textarea class="form-control" id="snippetInput" name="snippetSource" placeholder="Enter code here..."></textarea>
+         <textarea class="form-control col-xs-12" id="snippetInput" name="snippetSource" placeholder="Enter code here..." cols="80" rows="20"></textarea>
       </div>      
    </form>
    <button type="submit" class="btn btn-default">Submit</button>
