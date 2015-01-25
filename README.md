@@ -17,6 +17,80 @@ The solution is composed by the following sub-projects:
 The goal of this POC is to take some C#, compile it, run it. Easy :) 
 More precisely, we want to execute third-party code (a “snippet”) in a safe, reliable and efficient way.
 
+### Usage
+
+The main project, the Host, can be used in a "standalone" way, to run a series of tests or a single snippet:
+
+      USAGE:
+
+         SimpleHost.exe  [-p <int>] [-d <string>] [-m <string>] [-c <string>] [-a
+                         <string>] -v <string> [--] [--version] [-h]
+
+
+      Where:
+
+         -p <int>,  --port <int>
+           The port on which this Host will listen for snippet execution requests
+
+         -d <string>,  --database <string>
+           The path of the SQL CE database that holds the snippets
+
+         -m <string>,  --method <string>
+           The method to invoke
+
+         -c <string>,  --type <string>
+           The type name which contains the method to invoke
+
+         -a <string>,  --assembly <string>
+           The assembly file name
+
+         -v <string>,  --clrversion <string>
+           (required)  CLR version to use
+
+         --,  --ignore_rest
+           Ignores the rest of the labeled arguments following this flag.
+
+         --version
+           Displays version information and exits.
+
+         -h,  --help
+           Displays usage information and exits.
+
+
+To run a single snippet: pass the `-t (--test)` option, with the `-a (--assembly)`, `-c (--type)` and, optionally, the `-m (--method)` options.
+They are used to specify the method to run, the class (FullName) that contains the method, and the assembly file (`.dll` or `.exe`), where the class is implemented.
+
+If the `--method` option is omitted, all methods that starts with `SnippetTest` will be run. 
+
+Otherwise, the `-d (--database)` option is required. This option indicates the full path to the SQL Compact database used to store the snippets.
+The Host starts, listen on the port specified by `-p (--port)` (default: 4321), and execute Snippets as they are requested, loading them from the database.
+
+You must also specify a CLR/.NET version which is installed on your system (e.g. `-v v4.0.30319`).
+The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`.
+
+### TODO
+
+- <del>Set THREAD_PRIORITY_ABOVE_NORMAL for supervisor threads</del>
+- Extra safety: killing the supervisor (watchdog) thread brings process down
+- <del>Same for server thread</del>
+- No named sync primitives 
+   - (or better: decorate the name with the snippet GUID)
+- Choose C#/.NET version during snippet submission, record it.
+   - Get the list of available .NET SDKs using the Hosting API (from the Host)
+- Choose the references from a list (during submission, for compilation)
+      - Same "whitelist" used by Cecil post-processing
+- Supervisor: spawn two (N) hosts, maintain the count.
+- Use a distributed queue (e.g. Redis) for snippet submission/results, instead of plain sockets
+   - Move the "server" thread from managed to unmanaged, to improve stability and error handling in case of FEEE (CLR unload)
+- Use a separate, "single-run" host for "problematic" snippets.
+     - Host can be run/configured in "single mode": one snippet, execute and exit.
+- Use a separate host for each .NET version
+- Use the [new pooling API](https://msdn.microsoft.com/en-us/library/windows/desktop/ms686760.aspx) for better handling/managing ThreadPool threads
+- Finish implementation of the various `Console.WriteLine` overloads in `Pumpkin.Monitor`
+- Measure complete round-trip time
+- **TEST TEST TEST!**
+- ***BUGS BUGS BUGS!***
+
 #### The problems ####
 
 We want constraints on what the code can do.

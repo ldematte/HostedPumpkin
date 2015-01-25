@@ -23,8 +23,6 @@ namespace Pumpkin {
 
    public class SnippetCompiler {
 
-      // TODO: a name allowed in the CLR, but disallowed in C#
-      public const string MonitorFieldName = "__monitor";
       public const string SnippetMainMethodName = "SnippetMain";
 
       public static SnippetCompilationResult CompileWithCSC(string snippetSource, string tmpPath) {
@@ -269,7 +267,7 @@ namespace Pumpkin {
             // Retrieve the target class (the snippet class) we want to patch
             var targetType = module.Types.Single(t => t.FullName == className);
 
-            var monitorInstance = new FieldDefinition(MonitorFieldName, Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, module.Import(monitorType));
+            var monitorInstance = new FieldDefinition(Monitor.MonitorFieldName, Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, module.Import(monitorType));
             targetType.Fields.Add(monitorInstance);
 
             // Load the list of patchabel methods

@@ -28,12 +28,12 @@ namespace Pumpkin.Web.Controllers {
       }
 
       private static async Task SubmitSnippetPostFeedback(string snippetId, string connectionId) {
-         string result = "";
+         SnippetResult result;
          try {
             result = await HostConnector.RunSnippetAsync(snippetId);
          }
          catch (Exception ex) {
-            result = ex.Message;
+            result = new SnippetResult() { status = SnippetStatus.InitializationError, exception = ex.Message };
          }
 
          var hubContext = GlobalHost.ConnectionManager.GetHubContext<ResultHub>();
@@ -50,32 +50,38 @@ namespace Pumpkin.Web.Controllers {
             return new HttpStatusCodeResult(HttpStatusCode.Accepted);
          }
          else {
-            string result = await HostConnector.RunSnippetAsync(snippetId);
+            SnippetResult result = await HostConnector.RunSnippetAsync(snippetId);
             Response.StatusCode = (int)HttpStatusCode.OK;
             return Json(new { connectionId = connectionId, message = result });
          }         
       }
 
 
-      private static String snippetBody = @"
+      public static String SnippetUsing = @"
 using System;
 using System.Collections.Generic;
-{0}
-namespace Snippets {{
-    public class {1} {{
-        public static void {2}() {{
-            {3}
-        }}
-    }}
-}}";
+";
 
+      private static String snippetHeader = @"
+namespace Snippets {{
+    public class {0} {{
+        public static void {1}() {{
+";
+      public static String SnippetFooter = @"
+        }
+    }
+}";
+
+      public static String SnippetHeader() {
+         return String.Format(snippetHeader, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName);
+      }
 
       [HttpPost]
       public ActionResult SubmitSnippet(String usingDirectives, String snippetSource) {
 
          try {
             var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(
-               String.Format(snippetBody, usingDirectives, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName, snippetSource),
+               SnippetUsing + usingDirectives + SnippetHeader() + snippetSource + SnippetFooter,
                Server.MapPath(@"~\App_Data"));
 
             if (snippetAssembly.success) {

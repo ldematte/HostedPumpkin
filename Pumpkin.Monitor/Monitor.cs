@@ -18,7 +18,14 @@ namespace Pumpkin
 
         public const int MAX_THREAD_STARTS = 10;
 
-        public List<String> output = new List<String>();
+        // TODO: a name allowed in the CLR, but disallowed in C#
+        public const string MonitorFieldName = "__monitor";
+
+        public readonly List<string> output;
+
+        public Monitor(List<string> output) {
+           this.output = output;
+        }
 
         [SecuritySafeCritical]
         [MethodPatch(ClassName = "Console", MethodName = "WriteLine", IsStatic = true)]

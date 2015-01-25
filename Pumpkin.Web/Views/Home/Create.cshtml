@@ -44,12 +44,15 @@
    <div id="submissionResult" role="alert"></div>
    <form id="snippetForm">
       <div class="form-group">
+         <pre>@Pumpkin.Web.Controllers.HomeController.SnippetUsing</pre>
          <label for="usingInput">Using directives</label>
          <input class="form-control" id="usingInput" name="usingDirectives" placeholder="using namespace;">
       </div>
       <div class="form-group">
+         <pre>@Pumpkin.Web.Controllers.HomeController.SnippetHeader()</pre>
          <label for="snippetInput">Snippet</label>
          <textarea class="form-control col-xs-12" id="snippetInput" name="snippetSource" placeholder="Enter code here..." cols="80" rows="20"></textarea>
+         <pre>@Pumpkin.Web.Controllers.HomeController.SnippetFooter</pre>
       </div>      
    </form>
    <button type="submit" class="btn btn-default">Submit</button>

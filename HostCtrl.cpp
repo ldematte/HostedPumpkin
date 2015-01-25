@@ -124,8 +124,8 @@ STDMETHODIMP DHHostControl::GetHostManager(const IID &riid, void **ppvHostManage
       return memoryManager->QueryInterface(IID_IHostMemoryManager, ppvHostManager);
    if (riid == IID_IHostGCManager)
       return gcManager->QueryInterface(IID_IHostGCManager, ppvHostManager);
-   if (riid == IID_IHostIoCompletionManager)
-      return iocpManager->QueryInterface(IID_IHostIoCompletionManager, ppvHostManager);
+   //if (riid == IID_IHostIoCompletionManager)
+   //   return iocpManager->QueryInterface(IID_IHostIoCompletionManager, ppvHostManager);
    if (riid == IID_IHostThreadpoolManager)
       return threadpoolManager->QueryInterface(IID_IHostThreadpoolManager, ppvHostManager);
    if (riid == IID_IHostAssemblyManager)

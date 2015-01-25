@@ -16,7 +16,14 @@
          var submissionInfo = $("#submissionInfo");
 
          var handleResult = function (connectionId, message) {
-            submissionInfo.text("Done! CliendId = " + resultHubConnectionId + " ServerId = " + connectionId + " Message = " + message);
+            submissionInfo.text("Done! CliendId = " + resultHubConnectionId + " ServerId = " + connectionId);
+            $("#resultForm").visible = true;
+            $("#resultStatus").text(message.status);
+            var out = "";
+            $.each(message.output, function (idx, val) {
+               out = out + "\n" + val;
+            });
+            $("#resultOutput").text(out);
          };
 
          if ($.connection && $.connection.resultHub) {
@@ -28,7 +35,7 @@
             });
          }
 
-         $("#btnGo").click(function () {
+         $(".btnGo").click(function () {
             submissionInfo.text("Submitting...");
 
             $.ajax("/Home/SubmitRequest", {
@@ -56,17 +63,32 @@
 
 <div class="row">
    <div id="submissionInfo"></div>
-   <div class="row">      
-      <h3>Execute a snippet</h3>
-      <dl>
-         @foreach (var item in Model) {
-            <dt>Snippet: @item.Id &nbsp;</dt>
-            <dd>
-               Status: <div id="rectangle" style="background:@item.StatusColor;"></div>
-               <pre>@item.Source</pre>
-               <button id="btnGo" data-snippet-id="@item.Id">Go!</button>
-            </dd>
-         }
-      </dl>
-   </div>
+   <form class="form-horizontal" id="resultForm">
+      <div class="form-group">
+         <label class="col-sm-2 control-label">Status</label>
+         <div class="col-sm-10">
+            <p class="form-control-static" id="resultStatus"></p>
+         </div>
+      </div>
+      <div class="form-group">
+         <label class="col-sm-2 control-label">Output</label>
+         <div class="col-sm-10">
+            <pre class="form-control-static" id="resultOutput"></pre>
+         </div>
+      </div>
+   </form>
+
+</div>
+<div class="row">      
+   <h3>Execute a snippet</h3>
+   <dl>
+      @foreach (var item in Model) {
+         <dt>Snippet: @item.Id &nbsp;</dt>
+         <dd>
+            Status: <div id="rectangle" style="background:@item.StatusColor;"></div>
+            <pre>@item.Source</pre>
+            <button class="btnGo" data-snippet-id="@item.Id">Go!</button>
+         </dd>
+      }
+   </dl>
 </div>

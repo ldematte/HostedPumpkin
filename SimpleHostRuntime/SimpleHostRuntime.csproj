@@ -66,11 +66,15 @@
       <Project>{5f753054-ca09-4f23-9d9b-ba2c2f7b797b}</Project>
       <Name>Pumpkin.Data</Name>
     </ProjectReference>
+    <ProjectReference Include="..\Pumpkin.Monitor\Pumpkin.Monitor.csproj">
+      <Project>{c1b07372-8e8a-4e0f-aafc-329ccfe19317}</Project>
+      <Name>Pumpkin.Monitor</Name>
+    </ProjectReference>
   </ItemGroup>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
   <PropertyGroup>
     <PostBuildEvent>"$(SDK40ToolsPath)tlbexp.exe" "$(TargetPath)" /out:"$(SolutionDir)$(TargetName).tlb" /silent
-copy "$(TargetPath)" "$(SolutionDir)"</PostBuildEvent>
+copy "$(TargetDir)*.*" "$(SolutionDir)PrivateLib"</PostBuildEvent>
   </PropertyGroup>
   <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
        Other similar extension points exist, see Microsoft.Common.targets.

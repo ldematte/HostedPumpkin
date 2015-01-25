@@ -1,4 +1,5 @@
-﻿using Pumpkin.Data;
+﻿using Newtonsoft.Json;
+using Pumpkin.Data;
 using System;
 using System.Collections.Generic;
 using System.Linq;
@@ -30,15 +31,15 @@ namespace Pumpkin.Web {
          }
       }
 
-      public static async Task<string> RunSnippetAsync(string snippetId) {
+      public static async Task<SnippetResult> RunSnippetAsync(string snippetId) {
 
          var socket = GetSocket();
 
          await socket.SendAsync(snippetId, true);
          string s = await socket.ReceiveAsync();
 
-         // TODO TODO Deserialize, and return the result
-         return s;
+         // Deserialize, and return the result
+         return JsonConvert.DeserializeObject<SnippetResult>(s);
       }
 
    }

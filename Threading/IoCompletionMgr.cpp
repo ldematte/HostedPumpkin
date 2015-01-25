@@ -80,7 +80,7 @@ STDMETHODIMP SHIoCompletionManager::QueryInterface(const IID &riid, void **ppvOb
 int SHIoCompletionManager::IndexOf(HANDLE hPort) {
    CrstLock(this->pLock);
    for (int i = 0; i < numberOfPorts; ++i) {
-      if (ports[numberOfPorts].hPort == hPort) {
+      if (ports[i].hPort == hPort) {
          return i;
       }
    }

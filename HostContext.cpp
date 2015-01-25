@@ -80,6 +80,8 @@ STDMETHODIMP HostContext::raw_GetThreadCount(
    Logger::Debug("In HostContext::GetThreadCount %d", appDomainId);
    if (pRetVal == NULL)
       return E_INVALIDARG;
+
+   CrstLock(this->domainMapCrst);
    
    auto appDomainInfo = appDomains.find(appDomainId);
    if (appDomainInfo == appDomains.end()) {
@@ -96,6 +98,8 @@ STDMETHODIMP HostContext::raw_GetMemoryUsage(
    Logger::Debug("In HostContext::GetThreadCount %d", appDomainId);
    if (pRetVal == NULL)
       return E_INVALIDARG;
+
+   CrstLock(this->domainMapCrst);
 
    auto appDomainInfo = appDomains.find(appDomainId);
    if (appDomainInfo == appDomains.end()) {
@@ -118,6 +122,8 @@ STDMETHODIMP HostContext::raw_GetNumberOfZombies(
 
 STDMETHODIMP HostContext::raw_ResetCountersForAppDomain(/*[in]*/long appDomainId) {
    Logger::Debug("In HostContext::raw_ResetCountersForAppDomain");
+
+   CrstLock(this->domainMapCrst);
    auto appDomainInfo = appDomains.find(appDomainId);
    if (appDomainInfo == appDomains.end()) {
       Logger::Error("Cannot find AppDomain %d!", appDomainId);      
@@ -148,6 +154,8 @@ STDMETHODIMP HostContext::raw_GetLastMessage(/*[in]*/ long dwMilliseconds,
                                              /*[out]*/ HostEvent* hostEvent,  
                                              /*[out,retval]*/ VARIANT_BOOL* eventPresent) {
 
+   // TODO: alertable wait? Will it work with Thread.Interrupt?
+   // It should..
    DWORD dwResult = WaitForSingleObject(hMessageEvent, dwMilliseconds);
 
    if (dwResult == WAIT_OBJECT_0) {
@@ -184,27 +192,26 @@ STDMETHODIMP HostContext::raw_GetLastMessage(/*[in]*/ long dwMilliseconds,
 // Specifically, a reentrancy error (http://msdn.microsoft.com/en-us/library/ms172237%28v=vs.110%29.aspx)
 // The MDA has no effect per-se, but ignoring it can lead to serious error (stack/heap corruption)
 void HostContext::PostHostMessage(long eventType, long appDomainId, long managedThreadId) {
-   {
-      CrstLock(this->messageQueueCrst);
+   
+   CrstLock(this->messageQueueCrst);
 
-      bool eventAlreadyInserted = false;
-      for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) { // reverse is more efficient
-         if (it->appDomainId == appDomainId && it->eventType == eventType) {
-            eventAlreadyInserted = true;
-            break;
-         }
+   bool eventAlreadyInserted = false;
+   for (auto it = messageQueue.rbegin(); it != messageQueue.rend(); ++it) { // reverse is more efficient
+      if (it->appDomainId == appDomainId && it->eventType == eventType) {
+         eventAlreadyInserted = true;
+         break;
       }
-
-      if (!eventAlreadyInserted) {
-         HostEvent lastMessage;
-         lastMessage.eventType = eventType;
-         lastMessage.appDomainId = appDomainId;
-         lastMessage.managedThreadId = managedThreadId;
-
-         messageQueue.push_back(lastMessage);
-      }
-      SetEvent(hMessageEvent);
    }
+
+   if (!eventAlreadyInserted) {
+      HostEvent lastMessage;
+      lastMessage.eventType = eventType;
+      lastMessage.appDomainId = appDomainId;
+      lastMessage.managedThreadId = managedThreadId;
+
+      messageQueue.push_back(lastMessage);
+   }
+   SetEvent(hMessageEvent);
 }
 
 
@@ -288,7 +295,6 @@ bool HostContext::OnThreadAcquiring(DWORD dwParentThreadId) {
 }
 
 bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
-
    CrstLock(this->domainMapCrst);
    auto parentThreadDomain = threadAppDomain.find(dwParentThreadId);
    if (parentThreadDomain != threadAppDomain.end()) {
@@ -310,7 +316,6 @@ bool HostContext::OnThreadAcquire(DWORD dwParentThreadId, DWORD dwThreadId) {
 }
 
 bool HostContext::OnThreadRelease(DWORD dwThreadId) {
-
    CrstLock(this->domainMapCrst);
    auto parentThreadDomain = threadAppDomain.find(dwThreadId);
    if (parentThreadDomain != threadAppDomain.end()) {
@@ -403,6 +408,7 @@ void HostContext::OnMemoryAcquire(DWORD dwThreadId, LONG bytes, PVOID address) {
 }
 
 int HostContext::OnMemoryRelease(PVOID address) {
+   CrstLock(this->domainMapCrst);
 
    auto memoryInfo = memoryAppDomain.find(address);
    if (memoryInfo == memoryAppDomain.end())

@@ -52,9 +52,9 @@ namespace SimpleHostRuntime {
       private async Task WaitForConnection(Socket listener) {
          while (true) {
             // Start an asynchronous socket to listen for connections.
-            Console.WriteLine("Waiting for a connection...");
+            Debug.WriteLine("Waiting for a connection...");
             Socket socket = await listener.AcceptAsync();
-            Console.WriteLine("Connected");
+            Debug.WriteLine("Connected");
             HandleConnection(socket);          
          }
       }
@@ -86,19 +86,22 @@ namespace SimpleHostRuntime {
 
       public async void HandleConnection(Socket socket) {
          try {
-            while (socket.Connected) {               
-               var command = await socket.ReceiveAsync();
-               if (command.IndexOf("<EOF>") != -1) {
-                  break;
+            while (socket.Connected) {
+               try {
+                  var command = await socket.ReceiveAsync();
+                  if (command.IndexOf("<EOF>") != -1) {
+                     break;
+                  }
+                  var result = await DoStuffAndReturnWhenIdFinished(command);
+                  var jsonResult = JsonConvert.SerializeObject(result);
+                  var sentBytes = await socket.SendAsync(jsonResult, true);
+                  Debug.WriteLine("Sent " + sentBytes + " bytes");
                }
-
-               var result = await DoStuffAndReturnWhenIdFinished(command);
-               var jsonResult = JsonConvert.SerializeObject(result);
-               await socket.SendAsync(jsonResult, true);
+               catch (Exception ex) {
+                  Debug.WriteLine("HandleConnection Error: " + ex.Message);
+                  Debug.WriteLine(ex.StackTrace);
+               }
             }
-         }
-         catch (Exception ex) {
-            Console.WriteLine("Error: " + ex.Message);
          }
          finally {
             socket.Shutdown(SocketShutdown.Both);

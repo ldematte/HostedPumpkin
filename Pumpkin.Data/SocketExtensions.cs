@@ -79,13 +79,14 @@ namespace Pumpkin.Data {
             }
             else {
                var s = Encoding.Unicode.GetString(socketStatus.buffer, 0, read);
-               var finished = isFinished(socketStatus.buffer, read);
-               socketStatus.sb.Append(s);
+               var finished = isFinished(socketStatus.buffer, read);               
 
                if (finished) {
+                  socketStatus.sb.Append(s, 0, s.Length - 1);
                   socketStatus.taskCompletionSource.TrySetResult(socketStatus.sb.ToString());
                }
                else {
+                  socketStatus.sb.Append(s);
                   socket.BeginReceive(socketStatus.buffer, 0, SocketStatus.BufferSize, 0,
                                       new AsyncCallback(ReceiveCallback), socketStatus);
                }

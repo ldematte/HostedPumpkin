@@ -211,12 +211,17 @@ int main(int argc, char* argv [])
 
    std::list<AssemblyInfo> hostAssemblies;
    std::wstring currentDir = CurrentDirectory();
-   AssemblyInfo appDomainManager(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\SimpleHostRuntime.dll", L"");
-   AssemblyInfo pumpkinData(L"Pumpkin.Data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=msil", currentDir + L"\\Pumpkin.Data.dll", L"");
-   AssemblyInfo pumpkinMonitor(L"Pumpkin.Monitor, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\Pumpkin.Monitor.dll", L"");
+
+   // TODO: DB table or configuration file?
+   // Or automatically all assemblies in PrivateLib
+   AssemblyInfo appDomainManager(L"SimpleHostRuntime, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\PrivateLib\\SimpleHostRuntime.dll", L"");
+   AssemblyInfo pumpkinData(L"Pumpkin.Data, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=msil", currentDir + L"\\PrivateLib\\Pumpkin.Data.dll", L"");
+   AssemblyInfo pumpkinMonitor(L"Pumpkin.Monitor, Version=1.0.0.0, Culture=neutral, PublicKeyToken=9abf81284e6824ad, processorarchitecture=MSIL", currentDir + L"\\PrivateLib\\Pumpkin.Monitor.dll", L"");  
+   AssemblyInfo newtonsoftJson(L"newtonsoft.json, version=6.0.0.0, culture=neutral, publickeytoken=30ad4fe6b2a6aeed, processorarchitecture=MSIL", currentDir + L"\\PrivateLib\\Newtonsoft.Json.dll", L"");
    hostAssemblies.push_back(appDomainManager);
    hostAssemblies.push_back(pumpkinData);
    hostAssemblies.push_back(pumpkinMonitor);
+   hostAssemblies.push_back(newtonsoftJson);
 
    // Construct our host control object.
    DHHostControl* hostControl = new DHHostControl(clr, hostAssemblies);

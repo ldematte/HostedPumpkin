@@ -22,8 +22,9 @@ namespace Pumpkin.Data {
    [Serializable]
    public struct SnippetResult {
       public SnippetStatus status;
-      public Exception exception;
+      public string exception;
       public long executionTime;
+      public List<string> output;
    }
 
 }

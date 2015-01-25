@@ -80,6 +80,7 @@ namespace SimpleHostRuntime {
             thread.Start();
          }
 
+         watchdogThread.Priority = ThreadPriority.AboveNormal;
          watchdogThread.Start();
       }
 
@@ -123,7 +124,7 @@ namespace SimpleHostRuntime {
                }
                else {
                   long currentTime = GetTimestamp();
-                  System.Diagnostics.Debug.WriteLine("Watchdog: check at " + currentTime);
+                  //System.Diagnostics.Debug.WriteLine("Watchdog: check at " + currentTime);
 
                   for (int i = 0; i < NumberOfDomainsInPool; ++i) {
                      // Something is running?
@@ -275,7 +276,7 @@ namespace SimpleHostRuntime {
                      }
                      catch (ThreadAbortException ex) {
                         // Someone called abort on us. 
-                        result.exception = ex;
+                        result.exception = ex.Message;
 
                         // It may be possible to use this domain again, otherwise we will recycle
                         if (Object.Equals(ex.ExceptionState, timeoutAbortToken)) {
@@ -298,7 +299,7 @@ namespace SimpleHostRuntime {
                         Thread.ResetAbort();
                      }
                      catch (Exception ex) {
-                        result.exception = ex;
+                        result.exception = ex.Message;
                         // Check if someone is misbehaving, throwing something else to "mask" the TAE
                         if (Thread.CurrentThread.ThreadState == System.Threading.ThreadState.AbortRequested) {
                            result.status = SnippetStatus.CriticalError;
@@ -332,7 +333,7 @@ namespace SimpleHostRuntime {
                      System.Diagnostics.Debug.WriteLine("Finished in: {0}", result.executionTime);
                      System.Diagnostics.Debug.WriteLine("Status: {0}", result.status);
                      if (result.exception != null)
-                        System.Diagnostics.Debug.WriteLine("Exception: " + result.exception.Message);
+                        System.Diagnostics.Debug.WriteLine("Exception: " + result.exception);
                      System.Diagnostics.Debug.WriteLine("Threads: {0}", threadsInDomain);
                      System.Diagnostics.Debug.WriteLine("Memory: {0}", memoryUsage);
                      System.Diagnostics.Debug.WriteLine("Status: {0}", memoryUsage);
@@ -384,11 +385,12 @@ namespace SimpleHostRuntime {
 
          thread.Name = "DomainPool thread " + threadIndex;
          myPoolDomain.mainThread = thread;
+         thread.Priority = ThreadPriority.BelowNormal;
          return thread;
       }
 
       internal void SubmitSnippet(SnippetInfo snippetInfo) {
-         SubmitSnippet(snippetInfo);
+         SubmitSnippet(snippetInfo, null);
       }         
 
       internal void SubmitSnippet(SnippetInfo snippetInfo, TaskCompletionSource<SnippetResult> completion) {

@@ -187,6 +187,7 @@ namespace SimpleHostRuntime {
          var hostServer = new SimpleHostServer(repository, domainPool);
 
          var hostServerThread = new Thread(() => hostServer.StartListening());
+         hostServerThread.Priority = ThreadPriority.AboveNormal;
          hostServerThread.Start();
          hostServerThread.Join();
       }
@@ -257,10 +258,18 @@ namespace SimpleHostRuntime {
 
             //Load the MethodInfo for a method in the new Assembly. This might be a method you know, or 
             //you can use Assembly.EntryPoint to get to the main function in an executable.
-            var type = clientAssembly.GetType(mainTypeName);
+            var type = clientAssembly.GetTypes().Where(t => t.Name == mainTypeName || t.FullName == mainTypeName).SingleOrDefault();
             if (type == null) {
                result.status = SnippetStatus.InitializationError;
                return result;
+            }
+
+
+            var monitorField = type.GetField(Pumpkin.Monitor.MonitorFieldName, BindingFlags.Public | BindingFlags.Static);
+            if (monitorField != null) {
+               result.output = new List<string>();
+               var monitor = new Pumpkin.Monitor(result.output);
+               monitorField.SetValue(null, monitor);
             }
 
             // To allow code to invoke any nonpublic member: Your code must be granted ReflectionPermission with the ReflectionPermissionFlag.MemberAccess flag
@@ -278,14 +287,12 @@ namespace SimpleHostRuntime {
                return result;
             }
 
-            //target.S Attributes = target.Attributes ^ MethodAttributes.Private;
-
             //Now invoke the method.
             target.Invoke(null, null);
             result.status = SnippetStatus.Success;
          }
          catch (TargetInvocationException ex) {
-            result.exception = (ex.InnerException == null ? ex : ex.InnerException);
+            result.exception = (ex.InnerException == null ? ex.Message : ex.InnerException.Message);
 
             // When we print informations from a SecurityException extra information can be printed if we are 
             //calling it with a full-trust stack.                  
@@ -303,7 +310,7 @@ namespace SimpleHostRuntime {
                                                ex.ToString() + 
                                                "===================================");
             CodeAccessPermission.RevertAssert();
-            result.exception = ex;
+            result.exception = ex.Message;
             result.status = SnippetStatus.ExecutionError;
          }
          return result;
