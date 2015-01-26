@@ -59,7 +59,7 @@ namespace SimpleHostRuntime {
          }
       }
 
-      private Task<SnippetResult> DoStuffAndReturnWhenIdFinished(string snippetId) {
+      private Task<SnippetResult> DoStuffAndReturnWhenIdFinished(Guid snippetId) {
          // Use a TCS for a Task without a "thread"
          // http://blogs.msdn.com/b/pfxteam/archive/2009/06/02/9685804.aspx
          var tcs = new TaskCompletionSource<SnippetResult>();
@@ -67,7 +67,7 @@ namespace SimpleHostRuntime {
          try {
             // Post in queue, and return immediately
             // The pool/deque will "call us back" (set the status) when finished
-            var snippetData = repository.Get(Guid.Parse(snippetId));
+            var snippetData = repository.Get(snippetId);
             var snippetInfo = new SnippetInfo() {
                   assemblyFile = snippetData.AssemblyBytes,
                   mainTypeName = SnippetData.SnippetTypeName,
@@ -92,7 +92,13 @@ namespace SimpleHostRuntime {
                   if (command.IndexOf("<EOF>") != -1) {
                      break;
                   }
-                  var result = await DoStuffAndReturnWhenIdFinished(command);
+                  var snippetId = Guid.Parse(command);
+                  var result = await DoStuffAndReturnWhenIdFinished(snippetId);
+                  
+                  var newStatus = result.status.ToHealth();
+                  if (newStatus != SnippetHealth.Unknown)
+                     repository.UpdateStatus(snippetId, newStatus);
+
                   var jsonResult = JsonConvert.SerializeObject(result);
                   var sentBytes = await socket.SendAsync(jsonResult, true);
                   Debug.WriteLine("Sent " + sentBytes + " bytes");

@@ -79,6 +79,12 @@ namespace SimpleHostRuntime {
       public event Action<int> DomainUnload;
       public event Action<int, Exception> FirstChanceException;
       public event Action<int, Object> UnhandledException;
+
+      // Explicitly manage this "manager" lifetime
+      // Prevents RemotingException "Object has been disconnected or does not exist at the server"
+      // Fortunately, infinite lease time is supported. 
+      // override InitializeLifetimeService and return a null object as the new lease, indicating that this lease never expires:
+      public override object InitializeLifetimeService() { return null; } 
  
       public override void InitializeNewDomain(AppDomainSetup appDomainInfo) {
 

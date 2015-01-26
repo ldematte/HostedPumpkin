@@ -60,10 +60,22 @@ The main project, the Host, can be used in a "standalone" way, to run a series o
 To run a single snippet: pass the `-t (--test)` option, with the `-a (--assembly)`, `-c (--type)` and, optionally, the `-m (--method)` options.
 They are used to specify the method to run, the class (FullName) that contains the method, and the assembly file (`.dll` or `.exe`), where the class is implemented.
 
-If the `--method` option is omitted, all methods that starts with `SnippetTest` will be run. 
+Example:
+    
+    -v v4.0.30319 -t -a "$(LocalDebuggerWorkingDirectory)TestApplication\bin\Debug\TestApplication.exe" -c TestApplication.Program -m SnippetTest12
+
+If the `--method` option is omitted, all methods which name starts with `SnippetTest` will be run. 
+
+Example:
+     
+    -v v4.0.30319 -t -a "$(LocalDebuggerWorkingDirectory)TestApplication\bin\Debug\TestApplication.exe" -c TestApplication.Program
 
 Otherwise, the `-d (--database)` option is required. This option indicates the full path to the SQL Compact database used to store the snippets.
 The Host starts, listen on the port specified by `-p (--port)` (default: 4321), and execute Snippets as they are requested, loading them from the database.
+
+Example:
+
+    -v v4.0.30319 -d "$(SolutionDir)Pumpkin.Web\App_Data\Snippets.sdf"
 
 You must also specify a CLR/.NET version which is installed on your system (e.g. `-v v4.0.30319`).
 The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`.

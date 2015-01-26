@@ -1,6 +1,7 @@
 Debug/*
 Release/*
 packages/*
+PrivateLib/*.pdb
 *.suo
 *.user
 *.sdf

@@ -15,7 +15,7 @@ namespace Pumpkin.Data {
                return "white";
             case SnippetHealth.Good:
                return "green";
-            case SnippetHealth.Timeout:
+            case SnippetHealth.Error:
                return "gold";
             case SnippetHealth.Fatal:
                return "red";
@@ -23,12 +23,29 @@ namespace Pumpkin.Data {
                return "aliceblue";
          }
       }
+
+      public static SnippetHealth ToHealth(this SnippetStatus status) {
+         switch (status) {
+            case SnippetStatus.Success:
+               return SnippetHealth.Good;
+
+            case SnippetStatus.Timeout:
+            case SnippetStatus.ExecutionError:
+            case SnippetStatus.ResourceError:
+               return SnippetHealth.Error;
+
+            case SnippetStatus.CriticalError:
+               return SnippetHealth.Fatal;
+         }
+         // SnippetStatus.InitializationError
+         return SnippetHealth.Unknown;
+      }
    }
 
    public enum SnippetHealth: int {
       Unknown = 0,
       Good = 1,
-      Timeout = 2,
+      Error = 2,
       Fatal = 3
    }
 
@@ -127,13 +144,13 @@ namespace Pumpkin.Data {
 
             cmd.CommandText = "UPDATE Snippets SET SnippetHealth = ? WHERE Id = ?";
 
-            cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.UniqueIdentifier));
             cmd.Parameters.Add(new SqlCeParameter("SnippetHealth", SqlDbType.Int));
+            cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.NChar));
 
             cmd.Prepare();
 
-            cmd.Parameters["Id"].Value = id.ToString();
             cmd.Parameters["SnippetHealth"].Value = (int)newStatus;
+            cmd.Parameters["Id"].Value = id.ToString();
             cmd.ExecuteNonQuery();
          }
       }

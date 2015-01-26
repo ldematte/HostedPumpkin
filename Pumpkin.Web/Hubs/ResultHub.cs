@@ -6,8 +6,8 @@ using Microsoft.AspNet.SignalR;
 
 namespace Pumpkin.Web.Hubs {
    public class ResultHub : Hub {
-      public void SendResult(string connectionId, string result) {
-         Clients.Client(connectionId).SendResult(result);
+      public void SendResult(string connectionId, string snippetId, string result, string newStatus) {
+         Clients.Client(connectionId).SendResult(snippetId, result, newStatus);
       }
    }
 }

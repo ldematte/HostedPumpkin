@@ -17,14 +17,13 @@ namespace Pumpkin.Web {
       private static Socket socket;
       private static Socket GetSocket() {
          try {
-         if (socket == null)
-            socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            if (socket == null || !socket.Connected) {
+               socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+               socket.Connect("localhost", hostPort);
+            }
 
-         if (!socket.Connected) 
-            socket.Connect("localhost", hostPort);
-         
-         return socket;
-      }
+            return socket;
+         }
          catch (Exception ex) {
             System.Diagnostics.Debug.WriteLine(ex.Message);
             throw;

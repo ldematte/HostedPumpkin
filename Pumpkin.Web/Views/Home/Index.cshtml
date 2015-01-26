@@ -11,19 +11,38 @@
 
    <script type="text/javascript">
       $(function () {
+         // switch from "bootstrap hide" to "jQuery hide"
+         $("#resultForm").hide().removeClass('hide');
          // Declare a proxy to reference the hub.
          var resultHubConnectionId;
          var submissionInfo = $("#submissionInfo");
 
-         var handleResult = function (connectionId, message) {
-            submissionInfo.text("Done! CliendId = " + resultHubConnectionId + " ServerId = " + connectionId);
-            $("#resultForm").visible = true;
+         var handleResult = function (connectionId, snippetId, message, newStatus) {
+            submissionInfo.text("Done! CliendId= " + resultHubConnectionId + ", ServerId= " + connectionId + ", SnippetId= " + snippetId);
+            $("#resultForm").show();            
             $("#resultStatus").text(message.status);
-            var out = "";
-            $.each(message.output, function (idx, val) {
-               out = out + "\n" + val;
-            });
-            $("#resultOutput").text(out);
+            var outputText;
+            if (message.output && message.output.length) {
+               var first = true;
+               $.each(message.output, function (idx, val) {
+                  if (first) {
+                     first = false;
+                     outputText = val;
+                  }
+                  else {
+                     outputText = outputText + "\n" + val;
+                  }
+               });               
+            }
+            else if (message.exception) {
+               outputText = "Exception: " + message.exception;
+            }
+            $("#resultOutput").text(outputText);
+
+            var snippetStatus = $("#" + snippetId);
+            if (snippetStatus) {
+               snippetStatus.css("background", newStatus);
+            }
          };
 
          if ($.connection && $.connection.resultHub) {
@@ -37,17 +56,19 @@
 
          $(".btnGo").click(function () {
             submissionInfo.text("Submitting...");
+            $("#resultForm").hide();
+            var snippetId = $(this).data("snippet-id");
 
             $.ajax("/Home/SubmitRequest", {
                type: "POST",
-               data: { snippetId: $(this).data("snippet-id"), connectionId: resultHubConnectionId }
+               data: { snippetId: snippetId, connectionId: resultHubConnectionId }
 
             }).done(function (data, textStatus, jqXHR) {
                if (jqXHR.status == 202) {
                   submissionInfo.text("Submitted...");
                }
                else {
-                  handleResult(data.connection, data.message);
+                  handleResult(data.connectionId, snippetId, data.message, data.newStatus);
                }
             });
          });
@@ -63,16 +84,16 @@
 
 <div class="row">
    <div id="submissionInfo"></div>
-   <form class="form-horizontal" id="resultForm">
+   <form class="form-horizontal hide" id="resultForm">
       <div class="form-group">
          <label class="col-sm-2 control-label">Status</label>
-         <div class="col-sm-10">
+         <div class="col-sm-8">
             <p class="form-control-static" id="resultStatus"></p>
          </div>
       </div>
       <div class="form-group">
          <label class="col-sm-2 control-label">Output</label>
-         <div class="col-sm-10">
+         <div class="col-sm-8">
             <pre class="form-control-static" id="resultOutput"></pre>
          </div>
       </div>
@@ -85,7 +106,7 @@
       @foreach (var item in Model) {
          <dt>Snippet: @item.Id &nbsp;</dt>
          <dd>
-            Status: <div id="rectangle" style="background:@item.StatusColor;"></div>
+            <span>Status:&nbsp;</span><span class="rectangle" id="@item.Id" style="background:@item.StatusColor;"></span>
             <pre>@item.Source</pre>
             <button class="btnGo" data-snippet-id="@item.Id">Go!</button>
          </dd>

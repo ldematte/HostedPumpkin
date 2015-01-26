@@ -22,7 +22,8 @@ select {
     max-width: 280px;
 }
 
-#rectangle{
-    width:16px;
-    height:16px;
+.rectangle{
+   display: inline-block;
+   width:10px;
+   height:10px;
 }

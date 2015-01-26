@@ -37,7 +37,7 @@ namespace Pumpkin.Web.Controllers {
          }
 
          var hubContext = GlobalHost.ConnectionManager.GetHubContext<ResultHub>();
-         hubContext.Clients.Client(connectionId).SendResult(connectionId, result);         
+         hubContext.Clients.Client(connectionId).SendResult(connectionId, snippetId, result, result.status.ToHealth().ToColor());
       }
 
       [HttpPost]
@@ -52,7 +52,7 @@ namespace Pumpkin.Web.Controllers {
          else {
             SnippetResult result = await HostConnector.RunSnippetAsync(snippetId);
             Response.StatusCode = (int)HttpStatusCode.OK;
-            return Json(new { connectionId = connectionId, message = result });
+            return Json(new { connectionId = connectionId, message = result, newStatus = result.status.ToHealth().ToColor() });
          }         
       }
 

@@ -230,7 +230,7 @@ namespace SimpleHostRuntime {
             // Here we enforce the "one domain, one thread" relationship
             try {
                var appDomain = AppDomainHelpers.CreateSandbox("Host Sandbox");
-               var manager = (SimpleHostAppDomainManager)appDomain.DomainManager;
+               var manager = (SimpleHostAppDomainManager)appDomain.DomainManager;               
 
                lock (poolLock) {                  
                   myPoolDomain.domainId = appDomain.Id;
