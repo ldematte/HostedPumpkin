@@ -87,7 +87,7 @@ The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`
 - Use a separate host for each .NET version
 - Use the [new pooling API](https://msdn.microsoft.com/en-us/library/windows/desktop/ms686760.aspx) for better handling/managing ThreadPool threads
 - Finish implementation of the various `Console.WriteLine` overloads in `Pumpkin.Monitor`
-- Measure complete round-trip time
+- <del>Measure complete round-trip time</del>
 - **TEST TEST TEST!**
 - ***BUGS BUGS BUGS!***
 
