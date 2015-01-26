@@ -85,7 +85,7 @@ The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`
 - <del>Set THREAD_PRIORITY_ABOVE_NORMAL for supervisor threads</del>
 - Extra safety: killing the supervisor (watchdog) thread brings process down
 - <del>Same for server thread</del>
-- No named sync primitives 
+- No named sync primitives (i.e.: forbid `Mutex` usage)
    - (or better: decorate the name with the snippet GUID)
 - Choose C#/.NET version during snippet submission, record it.
    - Get the list of available .NET SDKs using the Hosting API (from the Host)
@@ -99,7 +99,7 @@ The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`
 - Use a separate host for each .NET version
 - Use the [new pooling API](https://msdn.microsoft.com/en-us/library/windows/desktop/ms686760.aspx) for better handling/managing ThreadPool threads
 - Finish implementation of the various `Console.WriteLine` overloads in `Pumpkin.Monitor`
-- Measure complete round-trip time
+- <del>Measure complete round-trip time</del>
 - **TEST TEST TEST!**
 - ***BUGS BUGS BUGS!***
 
@@ -129,7 +129,7 @@ We want to monitor and cap resource usage:
 1. limit execution time
  - running time/execution time
 2. limit thread creation (avoid "fork-bombs")
- - deny (or handle in a sensible way) access to named kernel objects (e.g. named semaphores.. you do not want some casual interaction with them!)
+ - deny (or handle in a sensible way) access to named kernel objects (e.g. named mutexes.. you do not want some casual interaction with other mutexes!)
 3. limit process creation (zero - no spawning of processes. Can fall back to the "security" category: deny process creation)
 4. limit memory usage
 5. limit file usage (no files. Can fall back to the "security" category)
