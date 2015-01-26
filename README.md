@@ -73,7 +73,7 @@ The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`
 - <del>Set THREAD_PRIORITY_ABOVE_NORMAL for supervisor threads</del>
 - Extra safety: killing the supervisor (watchdog) thread brings process down
 - <del>Same for server thread</del>
-- No named sync primitives 
+- No named sync primitives (i.e.: forbid Mutex usage)
    - (or better: decorate the name with the snippet GUID)
 - Choose C#/.NET version during snippet submission, record it.
    - Get the list of available .NET SDKs using the Hosting API (from the Host)
