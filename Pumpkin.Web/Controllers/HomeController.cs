@@ -11,6 +11,7 @@ using System.Web.Mvc;
 using Pumpkin.Data;
 using Pumpkin.Web.Hubs;
 using Pumpkin.Web.Models;
+using System.Diagnostics;
 
 namespace Pumpkin.Web.Controllers {
    public class HomeController : Controller {
@@ -27,7 +28,7 @@ namespace Pumpkin.Web.Controllers {
          return View();
       }
 
-      private static async Task SubmitSnippetPostFeedback(string snippetId, string connectionId) {
+      private static async Task SubmitSnippetPostFeedback(string snippetId, string connectionId, long startTimestamp) {
          SnippetResult result;
          try {
             result = await HostConnector.RunSnippetAsync(snippetId);
@@ -37,20 +38,23 @@ namespace Pumpkin.Web.Controllers {
          }
 
          var hubContext = GlobalHost.ConnectionManager.GetHubContext<ResultHub>();
+         result.totalTime = StopwatchExtensions.GetTimestampMillis() - startTimestamp;
          hubContext.Clients.Client(connectionId).SendResult(connectionId, snippetId, result, result.status.ToHealth().ToColor());
       }
 
       [HttpPost]
       public async Task<ActionResult> SubmitRequest(string snippetId, string connectionId) {
+         long startTimestamp = StopwatchExtensions.GetTimestampMillis();
          if (String.IsNullOrEmpty(snippetId))
             return new HttpStatusCodeResult(HttpStatusCode.BadRequest);
 
          if (connectionId != null) {
-            Task.Run(() => SubmitSnippetPostFeedback(snippetId, connectionId)).FireAndForget();
+            Task.Run(() => SubmitSnippetPostFeedback(snippetId, connectionId, startTimestamp)).FireAndForget();
             return new HttpStatusCodeResult(HttpStatusCode.Accepted);
          }
          else {
             SnippetResult result = await HostConnector.RunSnippetAsync(snippetId);
+            result.totalTime = StopwatchExtensions.GetTimestampMillis() - startTimestamp;
             Response.StatusCode = (int)HttpStatusCode.OK;
             return Json(new { connectionId = connectionId, message = result, newStatus = result.status.ToHealth().ToColor() });
          }         

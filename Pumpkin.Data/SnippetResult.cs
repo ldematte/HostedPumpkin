@@ -24,6 +24,7 @@ namespace Pumpkin.Data {
       public SnippetStatus status;
       public string exception;
       public long executionTime;
+      public long totalTime;
       public List<string> output;
    }
 

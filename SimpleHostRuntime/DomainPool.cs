@@ -123,7 +123,7 @@ namespace SimpleHostRuntime {
                   }
                }
                else {
-                  long currentTime = GetTimestamp();
+                  long currentTime = StopwatchExtensions.GetTimestampMillis();
                   //System.Diagnostics.Debug.WriteLine("Watchdog: check at " + currentTime);
 
                   for (int i = 0; i < NumberOfDomainsInPool; ++i) {
@@ -213,12 +213,7 @@ namespace SimpleHostRuntime {
                System.Diagnostics.Debug.WriteLine(ex.ToString());
             }
          }
-      }
-
-      private static long GetTimestamp() {
-         long frequency = Stopwatch.Frequency;
-         return Stopwatch.GetTimestamp() / (frequency / 1000);
-      }
+      }      
 
       private Thread CreateDomainThread(int threadIndex) {
          System.Diagnostics.Debug.WriteLine("CreateDomainThread: " + threadIndex);
@@ -260,7 +255,7 @@ namespace SimpleHostRuntime {
                      try {
                         Interlocked.Increment(ref myPoolDomain.numberOfUsages);
                         // Record when we started
-                        long startTimestamp = GetTimestamp();
+                        long startTimestamp = StopwatchExtensions.GetTimestampMillis();
                         System.Diagnostics.Debug.WriteLine("Starting execution at " + startTimestamp);
                         Thread.VolatileWrite(ref myPoolDomain.timeOfSubmission, startTimestamp);
 
@@ -271,8 +266,10 @@ namespace SimpleHostRuntime {
 
                         // ...back to the main AppDomain
                         Debug.Assert(AppDomain.CurrentDomain.IsDefaultAppDomain());
+                        long currentTime = StopwatchExtensions.GetTimestampMillis();
+                        result.executionTime = currentTime - Thread.VolatileRead(ref myPoolDomain.timeOfSubmission);
                         // Flag it as "not executing"
-                        Thread.VolatileWrite(ref myPoolDomain.timeOfSubmission, 0);                        
+                        Thread.VolatileWrite(ref myPoolDomain.timeOfSubmission, 0);
                      }
                      catch (ThreadAbortException ex) {
                         // Someone called abort on us. 
@@ -321,9 +318,7 @@ namespace SimpleHostRuntime {
 
                      // No need to catch StackOverflowException; the Host will escalate to a (rude) domain unload
                      // for us
-                     // TODO: check that AppDomain.DomainUnload is called anyway!
-
-                     result.executionTime = GetTimestamp() - Thread.VolatileRead(ref myPoolDomain.timeOfSubmission);
+                     // TODO: check that AppDomain.DomainUnload is called anyway!                     
 
                      // Before looping, check if we are OK; we reuse the domain only if we are not leaking
                      int threadsInDomain = defaultDomainManager.GetThreadCount(appDomain.Id);
@@ -336,7 +331,6 @@ namespace SimpleHostRuntime {
                         System.Diagnostics.Debug.WriteLine("Exception: " + result.exception);
                      System.Diagnostics.Debug.WriteLine("Threads: {0}", threadsInDomain);
                      System.Diagnostics.Debug.WriteLine("Memory: {0}", memoryUsage);
-                     System.Diagnostics.Debug.WriteLine("Status: {0}", memoryUsage);
                      System.Diagnostics.Debug.WriteLine("========================================");
 
                      if (threadsInDomain > 1) {

@@ -38,6 +38,8 @@
                outputText = "Exception: " + message.exception;
             }
             $("#resultOutput").text(outputText);
+            $("#resultTime").text(message.executionTime + "ms");
+            $("#resultTotalTime").text(message.totalTime + "ms");
 
             var snippetStatus = $("#" + snippetId);
             if (snippetStatus) {
@@ -95,6 +97,18 @@
          <label class="col-sm-2 control-label">Output</label>
          <div class="col-sm-8">
             <pre class="form-control-static" id="resultOutput"></pre>
+         </div>
+      </div>
+      <div class="form-group">
+         <label class="col-sm-2 control-label">Execution time</label>
+         <div class="col-sm-8">
+            <p class="form-control-static" id="resultTime"></p>
+         </div>
+      </div>
+      <div class="form-group">
+         <label class="col-sm-2 control-label">Total time</label>
+         <div class="col-sm-8">
+            <p class="form-control-static" id="resultTotalTime"></p>
          </div>
       </div>
    </form>
