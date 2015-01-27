@@ -25,7 +25,7 @@
                   ul.append("<li>" + val +"</li>");
                });
                submissionResult.html(ul);
-               submissionResult.removeClass(function (i, c) { (c.indexOf("alert") >= 0) });
+               submissionResult.removeClass(function (i, c) { return true; });
                if (data.status == 400) {
                   submissionResult.addClass("alert alert-danger");
                }
@@ -50,10 +50,16 @@
                    id="usingInput" name="usingDirectives" placeholder="using namespace;" cols="60" rows="3"></textarea>
       </div>
       <div class="form-group">
-         <pre>@Pumpkin.Web.Controllers.HomeController.SnippetHeader()</pre>
-         <label for="snippetInput">Snippet</label>
+         <pre>@Pumpkin.Web.Controllers.HomeController.SnippetClassHeader</pre>
+         <label for="snippetClasses">Snippet classes</label>
          <textarea autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-control col-xs-12 code"
-                   id="snippetInput" name="snippetSource" placeholder="Enter code here..." cols="80" rows="20"></textarea>
+                   id="snippetClasses" name="snippetClasses" placeholder="Enter class code here..." cols="80" rows="20"></textarea>
+      </div>
+      <div class="form-group">
+         <pre>@Pumpkin.Web.Controllers.HomeController.SnippetMainHeader()</pre>
+         <label for="snippetMain">Snippet main</label>
+         <textarea autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-control col-xs-12 code"
+                   id="snippetMain" name="snippetMain" placeholder="Enter main here..." cols="80" rows="20"></textarea>
          <pre>@Pumpkin.Web.Controllers.HomeController.SnippetFooter</pre>
       </div>
       <div class="form-group">

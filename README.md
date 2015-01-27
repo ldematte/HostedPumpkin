@@ -91,7 +91,7 @@ The available versions are those listed under `%WINDIR%\Microsoft.NET\Framework`
    - Get the list of available .NET SDKs using the Hosting API (from the Host)
 - Choose the references from a list (during submission, for compilation)
       - Same "whitelist" used by Cecil post-processing
-- Allow definition of static methods and classes
+- <del>Allow definition of static methods and classes</del>
 - Supervisor: spawn two (N) hosts, maintain the count.
 - Use a distributed queue (e.g. Redis) for snippet submission/results, instead of plain sockets
    - Move the "server" thread from managed to unmanaged, to improve stability and error handling in case of FEEE (CLR unload)

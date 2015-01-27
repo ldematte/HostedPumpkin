@@ -21,8 +21,8 @@ namespace Pumpkin.Web.Controllers {
 
       public ActionResult Index() {
          var snippets = repository.All().Select(s => new Snippet { 
-            Id = s.Id.ToString(), 
-            Source = s.SnippetSource, 
+            Id = s.Id.ToString(),
+            Source = String.IsNullOrWhiteSpace(s.SnippetClasses) ? s.SnippetSource : s.SnippetClasses + "\n----\n" + s.SnippetSource, 
             StatusColor = s.SnippetHealth.ToColor(),
             CompilerVersion = s.CompilerVersion
          });
@@ -71,8 +71,10 @@ using System;
 using System.Collections.Generic;
 ";
 
-      private static String snippetHeader = @"
-namespace Snippets {{
+      public static String SnippetClassHeader = @"
+namespace Snippets {
+";
+      private static String snippetMainHeader = @"
     public class {0} {{
         public static void {1}() {{
 ";
@@ -81,22 +83,30 @@ namespace Snippets {{
     }
 }";
 
-      public static String SnippetHeader() {
-         return String.Format(snippetHeader, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName);
+      public static String SnippetMainHeader() {
+         return String.Format(snippetMainHeader, SnippetData.SnippetTypeName, SnippetData.SnippetMethodName);
       }
 
       [HttpPost]
-      public ActionResult SubmitSnippet(String usingDirectives, String snippetSource, String compilerVersion) {
+      public ActionResult SubmitSnippet(String usingDirectives, String snippetClasses, String snippetMain, String compilerVersion) {
 
          try {
+            var snippetSource = new System.Text.StringBuilder();
+            snippetSource.Append(SnippetUsing);
+            snippetSource.Append(usingDirectives);
+            snippetSource.Append(SnippetClassHeader);
+            snippetSource.Append(snippetClasses);
+            snippetSource.Append(SnippetMainHeader());
+            snippetSource.Append(snippetMain);
+            snippetSource.Append(SnippetFooter);
+
             var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(
-               SnippetUsing + usingDirectives + SnippetHeader() + snippetSource + SnippetFooter,
-               Server.MapPath(@"~\App_Data"), compilerVersion);
+               snippetSource.ToString(), Server.MapPath(@"~\App_Data"), compilerVersion);
 
             if (snippetAssembly.success) {
                var patchedAssembly = SnippetCompiler.PatchAssembly(snippetAssembly.assemblyBytes, "Snippets." + SnippetData.SnippetTypeName);
 
-               repository.Save(usingDirectives, snippetSource, patchedAssembly, compilerVersion);
+               repository.Save(usingDirectives, snippetClasses, snippetMain, patchedAssembly, compilerVersion);
 
                return new HttpStatusCodeResult(204);
             }

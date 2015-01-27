@@ -56,7 +56,6 @@
     <Compile Include="Tests\CreateObjectWithActivator.cs" />
     <Compile Include="Tests\EndlessLoop.cs" />
     <Compile Include="Tests\ObjectCreation.cs" />
-    <Compile Include="Tests\Patched_ObjectCreation.cs" />
     <Compile Include="Tests\OutOfMemory.cs" />
     <Compile Include="Tests\HelloWorld.cs" />
     <Compile Include="Tests\FileRead.cs" />
