@@ -25,38 +25,57 @@ namespace Pumpkin {
 
       public const string SnippetMainMethodName = "SnippetMain";
 
+      public static IEnumerable<string> GetAvailableVersions() {
+         return new[] { "V2.0", "v3.5", "v4.0" };
+      }
+
       public static SnippetCompilationResult CompileWithCSC(string snippetSource, string tmpPath) {
+         return CompileWithCSC(snippetSource, tmpPath, "v4.0");
+      }
 
-         var options = new Dictionary<string, string> { { "CompilerVersion", "v4.0" } };
-         var csc = new CSharpCodeProvider(options);
+      public static SnippetCompilationResult CompileWithCSC(string snippetSource, string tmpPath, string compilerVersion) {
 
-         var snippetGuid = Guid.NewGuid();
+         var options = new Dictionary<string, string> { { "CompilerVersion", compilerVersion } };
+         using (var csc = new CSharpCodeProvider(options)) {
+            var snippetGuid = Guid.NewGuid();
 
-         var compilerParams = new CompilerParameters();
-         compilerParams.OutputAssembly = Path.Combine(tmpPath, "snippet" + snippetGuid.ToString() + ".dll");
+            var compilerParams = new CompilerParameters();
+            compilerParams.OutputAssembly = Path.Combine(tmpPath, "snippet" + snippetGuid.ToString() + ".dll");
 
-         // Add the assemblies we use in our snippet, implicit or explicit.
-         // Our own monitor always goes in
-         compilerParams.ReferencedAssemblies.Add(typeof(Pumpkin.Monitor).Assembly.Location);
-         compilerParams.ReferencedAssemblies.Add("System.dll");
-         compilerParams.ReferencedAssemblies.Add("System.Core.dll");
+            // Add the assemblies we use in our snippet, implicit or explicit.
+            // Our own monitor always goes in
+            compilerParams.ReferencedAssemblies.Add(typeof(Pumpkin.Monitor).Assembly.Location);
+            compilerParams.ReferencedAssemblies.Add("System.dll");
+            compilerParams.ReferencedAssemblies.Add("System.Core.dll");
+            compilerParams.ReferencedAssemblies.Add("System.Data.dll");
 
-         var assemblyInfoCs = "[assembly: System.Security.SecurityTransparent]";
+            if (compilerVersion != "v2.0") {
+               compilerParams.ReferencedAssemblies.Add("System.Xml.dll");
+               compilerParams.ReferencedAssemblies.Add("System.Xml.Linq.dll");
+            }
 
-         var compilerResults = csc.CompileAssemblyFromSource(compilerParams, snippetSource, assemblyInfoCs);
-         // TODO: handle compilation errors
+            // For the C# dynamic keyword
+            if (compilerVersion == "v4.0")
+               compilerParams.ReferencedAssemblies.Add("Microsoft.CSharp.dll");
 
-         var success = !compilerResults.Errors.HasErrors;
-         byte[] assemblyBytes = null;
-         if (success)
-            assemblyBytes = File.ReadAllBytes(compilerResults.PathToAssembly);
+            var assemblyInfoCs = "[assembly: System.Security.SecurityTransparent]";
 
-         return new SnippetCompilationResult() { 
-            assemblyBytes = assemblyBytes,
-            snippetGuid = snippetGuid,
-            success = success,
-            errors = compilerResults.Errors.Cast<CompilerError>().Select(e => e.ErrorText)
-         };
+            var compilerResults = csc.CompileAssemblyFromSource(compilerParams, snippetSource, assemblyInfoCs);
+            // TODO: handle compilation errors
+
+            var success = !compilerResults.Errors.HasErrors;
+            byte[] assemblyBytes = null;
+            if (success)
+               assemblyBytes = File.ReadAllBytes(compilerResults.PathToAssembly);
+
+            return new SnippetCompilationResult() {
+               assemblyBytes = assemblyBytes,
+               snippetGuid = snippetGuid,
+               success = success,
+               errors = compilerResults.Errors.Cast<CompilerError>().Select(e => 
+                  String.Format("cs({0},{1}): {2} {3}: {4}", e.Line, e.Column, e.IsWarning ? "warning" : "error", e.ErrorNumber, e.ErrorText))
+            };
+         }
       }
 
       public static bool CheckAssemblyAgainstWhitelist(byte[] assembly, List<ListEntry> whiteList) {
@@ -162,11 +181,13 @@ namespace Pumpkin {
             il.InsertBefore(patchedCall, il.Create(OpCodes.Ldsfld, monitorRef));
          }
 
+         /*
          var objCreations =
              method.Body.Instructions.
              Where(i => i.OpCode == OpCodes.Newobj).ToList();
 
          var createMethod = module.Import(monitorType.Methods.Single(m => m.Name == "New"));
+         */ 
 
          // ---------
          // | Hello |
@@ -196,6 +217,7 @@ namespace Pumpkin {
          // ldloc.1      // object
          // stelem.ref   // store
 
+         /*
          foreach (var i in objCreations) {
             System.Diagnostics.Debug.WriteLine(i.Operand.ToString());
 
@@ -253,6 +275,7 @@ namespace Pumpkin {
 
             il.Replace(i, patchedCall);
          }
+         */
       }
 
       // A very simple demo of assembly patching

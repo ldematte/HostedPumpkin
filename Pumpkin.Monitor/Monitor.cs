@@ -59,50 +59,6 @@ namespace Pumpkin
         // public static void Console_WriteLine(string arg, Monitor that) {
         //    that.Console_WriteLine(arg)
         // }
-        // But this is for future consideration
-
-
-        [SecuritySafeCritical]
-        public static T New<T>(object[] parameters, Monitor monitor) {
-
-            //lock (monitor.monitorLock) {
-
-                var t = (T)Activator.CreateInstance(typeof(T), parameters);
-                // This is an approximation (no padding). See http://stackoverflow.com/a/207605/863564
-                monitor.numberOfObjectCreations += 1;
-
-                if (monitor.NumberOfObjectCreations > MAX_ALLOCATIONS) {
-                    // || AppDomain.CurrentDomain.MonitoringSurvivedMemorySize > MAX_MEMORY_USAGE
-                    throw new TooManyAllocationsException();
-                }
-
-                return t;
-            //}
-        }
-
-        private int numberOfObjectCreations = 0;
-        public int NumberOfObjectCreations { get { return numberOfObjectCreations; } }
-        private int numberOfThreadStarts = 0;
-        public int NumberOfThreadStarts { get { return numberOfThreadStarts; } }
-
-        private object monitorLock = new object();
-  
-        [MethodPatch(ClassName="Thread", MethodName="Start", IsStatic=false)]
-        [SecuritySafeCritical]        
-        public static void Thread_Start(System.Threading.Thread that, Monitor monitor) {
-            lock (monitor.monitorLock) {
-                monitor.numberOfThreadStarts += 1;
-
-                if (monitor.NumberOfThreadStarts < Monitor.MAX_THREAD_STARTS) {
-                    that.Start();
-                }
-                else {
-                    (new PermissionSet(PermissionState.Unrestricted)).Assert();
-                    System.Diagnostics.Debug.WriteLine("Refused to start Thread {0}", that.ManagedThreadId);
-                    CodeAccessPermission.RevertAssert();
-                    // TODO: stop and tear down everything
-                }
-            }
-        }
+        // But this is for future consideration        
     }
 }

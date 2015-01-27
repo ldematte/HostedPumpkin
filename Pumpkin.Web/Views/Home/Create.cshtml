@@ -46,14 +46,24 @@
       <div class="form-group">
          <pre>@Pumpkin.Web.Controllers.HomeController.SnippetUsing</pre>
          <label for="usingInput">Using directives</label>
-         <input class="form-control" id="usingInput" name="usingDirectives" placeholder="using namespace;">
+         <textarea autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-control col-xs-12 code"
+                   id="usingInput" name="usingDirectives" placeholder="using namespace;" cols="60" rows="3"></textarea>
       </div>
       <div class="form-group">
          <pre>@Pumpkin.Web.Controllers.HomeController.SnippetHeader()</pre>
          <label for="snippetInput">Snippet</label>
-         <textarea class="form-control col-xs-12" id="snippetInput" name="snippetSource" placeholder="Enter code here..." cols="80" rows="20"></textarea>
+         <textarea autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false" class="form-control col-xs-12 code"
+                   id="snippetInput" name="snippetSource" placeholder="Enter code here..." cols="80" rows="20"></textarea>
          <pre>@Pumpkin.Web.Controllers.HomeController.SnippetFooter</pre>
-      </div>      
+      </div>
+      <div class="form-group">
+         <label for="compilerVersion">C# version</label>
+         <select class="form-control" name="compilerVersion" id="compilerVersion">
+            @foreach (var v in Pumpkin.SnippetCompiler.GetAvailableVersions()) {
+               <option>@v</option>
+            }
+         </select>
+      </div>
    </form>
    <button type="submit" class="btn btn-default">Submit</button>
 </div>

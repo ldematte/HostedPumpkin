@@ -8,6 +8,12 @@ namespace Pumpkin.Web.Models {
       public string Usings { get; set; }
       public string Source { get; set; }
 
+      private string compilerVersion;
+      public string CompilerVersion { 
+         get { return (String.IsNullOrEmpty(compilerVersion) ? "<default>" : compilerVersion); }
+         set { compilerVersion = value; }
+      }
+
       private string statusColor = "white";
       public string StatusColor { 
          get { return statusColor; }

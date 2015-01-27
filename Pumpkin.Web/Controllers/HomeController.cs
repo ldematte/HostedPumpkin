@@ -20,7 +20,12 @@ namespace Pumpkin.Web.Controllers {
 
 
       public ActionResult Index() {
-         var snippets = repository.All().Select(s => new Snippet { Id = s.Id.ToString(), Source = s.SnippetSource, StatusColor = s.SnippetHealth.ToColor() });
+         var snippets = repository.All().Select(s => new Snippet { 
+            Id = s.Id.ToString(), 
+            Source = s.SnippetSource, 
+            StatusColor = s.SnippetHealth.ToColor(),
+            CompilerVersion = s.CompilerVersion
+         });
          return View(snippets);
       }
 
@@ -81,17 +86,17 @@ namespace Snippets {{
       }
 
       [HttpPost]
-      public ActionResult SubmitSnippet(String usingDirectives, String snippetSource) {
+      public ActionResult SubmitSnippet(String usingDirectives, String snippetSource, String compilerVersion) {
 
          try {
             var snippetAssembly = Pumpkin.SnippetCompiler.CompileWithCSC(
                SnippetUsing + usingDirectives + SnippetHeader() + snippetSource + SnippetFooter,
-               Server.MapPath(@"~\App_Data"));
+               Server.MapPath(@"~\App_Data"), compilerVersion);
 
             if (snippetAssembly.success) {
                var patchedAssembly = SnippetCompiler.PatchAssembly(snippetAssembly.assemblyBytes, "Snippets." + SnippetData.SnippetTypeName);
 
-               repository.Save(usingDirectives, snippetSource, patchedAssembly);
+               repository.Save(usingDirectives, snippetSource, patchedAssembly, compilerVersion);
 
                return new HttpStatusCodeResult(204);
             }

@@ -59,6 +59,7 @@ namespace Pumpkin.Data {
       public string SnippetSource { get; set; }
       public string UsingDirectives { get; set; }
       public SnippetHealth SnippetHealth { get; set; }
+      public string CompilerVersion { get; set; }
    }
 
    public class SnippetDataRepository {
@@ -103,27 +104,29 @@ namespace Pumpkin.Data {
                   AssemblyBytes = assemblyBytes, 
                   SnippetSource = reader.GetString(2),
                   UsingDirectives = reader.GetString(3),
-                  SnippetHealth = (SnippetHealth)reader.GetInt32(4)
+                  SnippetHealth = (SnippetHealth)reader.GetInt32(4),
+                  CompilerVersion = reader.IsDBNull(5) ? String.Empty : reader.GetString(5)
                };
             }
          }
          return null;
       }
 
-      public Guid Save(String usings, String source, byte[] assemblyBytes) {
+      public Guid Save(String usings, String source, byte[] assemblyBytes, String compilerVersion) {
          Guid id = Guid.NewGuid();
 
          // Save
          using (var connection = GetOpenConnection()) {
             SqlCeCommand cmd = connection.CreateCommand();
 
-            cmd.CommandText = "INSERT INTO Snippets (Id, AssemblyBytes, SnippetSource, UsingDirectives, SnippetHealth) VALUES (?, ?, ?, ?, ?)";
+            cmd.CommandText = "INSERT INTO Snippets (Id, AssemblyBytes, SnippetSource, UsingDirectives, SnippetHealth, CompilerVersion) VALUES (?, ?, ?, ?, ?, ?)";
 
             cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.NChar));
             cmd.Parameters.Add(new SqlCeParameter("AssemblyBytes", SqlDbType.Image));
             cmd.Parameters.Add(new SqlCeParameter("SnippetSource", SqlDbType.NText));
             cmd.Parameters.Add(new SqlCeParameter("UsingDirectives", SqlDbType.NText));
             cmd.Parameters.Add(new SqlCeParameter("SnippetHealth", SqlDbType.Int));
+            cmd.Parameters.Add(new SqlCeParameter("CompilerVersion", SqlDbType.NVarChar));
            
             cmd.Prepare();
 
@@ -132,6 +135,7 @@ namespace Pumpkin.Data {
             cmd.Parameters["SnippetSource"].Value = source;
             cmd.Parameters["UsingDirectives"].Value = usings;
             cmd.Parameters["SnippetHealth"].Value = (int)SnippetHealth.Unknown;
+            cmd.Parameters["CompilerVersion"].Value = compilerVersion;
             cmd.ExecuteNonQuery();
          }
 
@@ -172,7 +176,8 @@ namespace Pumpkin.Data {
                   AssemblyBytes = assemblyBytes, 
                   SnippetSource = reader.GetString(2),
                   UsingDirectives = reader.GetString(3),
-                  SnippetHealth = (SnippetHealth)reader.GetInt32(4)
+                  SnippetHealth = (SnippetHealth)reader.GetInt32(4),
+                  CompilerVersion = reader.IsDBNull(5) ? String.Empty : reader.GetString(5)
                };
             }
          }

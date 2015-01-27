@@ -121,8 +121,10 @@
          <dt>Snippet: @item.Id &nbsp;</dt>
          <dd>
             <span>Status:&nbsp;</span><span class="rectangle" id="@item.Id" style="background:@item.StatusColor;"></span>
+            <div>C# version: @item.CompilerVersion</div>
             <pre>@item.Source</pre>
             <button class="btnGo" data-snippet-id="@item.Id">Go!</button>
+            <div class="spacer" />
          </dd>
       }
    </dl>
