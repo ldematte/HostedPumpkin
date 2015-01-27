@@ -51,6 +51,8 @@
   </Choose>
   <ItemGroup>
     <Compile Include="CompilationTests.cs" />
+    <Compile Include="ExecutionTests.cs" />
+    <Compile Include="Tests\AsyncAwait.cs" />
     <Compile Include="Tests\CreateThread.cs" />
     <Compile Include="Tests\ThrowException.cs" />
     <Compile Include="Tests\CreateObjectWithActivator.cs" />

@@ -278,6 +278,17 @@ namespace Pumpkin {
          */
       }
 
+      private static void PatchType(TypeDefinition type, ModuleDefinition module, TypeDefinition monitorType,  FieldDefinition monitorInstance, Dictionary<Signature, MethodDefinition> patches) {
+         // Patch all of them!
+         foreach (var method in type.Methods) {
+            PatchMethod(method, module, monitorType, monitorInstance, patches);
+         }
+
+         foreach (var subType in type.NestedTypes) {
+            PatchType(subType, module, monitorType, monitorInstance, patches);
+         }
+      }
+
       // A very simple demo of assembly patching
       public static byte[] PatchAssembly(byte[] compiledSnippet, string className) {
 
@@ -287,18 +298,18 @@ namespace Pumpkin {
          using (var memoryStream = new MemoryStream(compiledSnippet)) {
             var module = ModuleDefinition.ReadModule(memoryStream);
 
-            // Retrieve the target class (the snippet class) we want to patch
-            var targetType = module.Types.Single(t => t.FullName == className);
+            // Retrieve the "main" target class (the snippet class)
+            var snippetClass = module.Types.Single(t => t.FullName == className);
 
             var monitorInstance = new FieldDefinition(Monitor.MonitorFieldName, Mono.Cecil.FieldAttributes.Static | Mono.Cecil.FieldAttributes.Public, module.Import(monitorType));
-            targetType.Fields.Add(monitorInstance);
+            snippetClass.Fields.Add(monitorInstance);
 
             // Load the list of patchabel methods
             var patches = MethodPatches(monitorType);
 
-            // Patch all of them!
-            foreach (var method in targetType.Methods) {
-               PatchMethod(method, module, monitorType, monitorInstance, patches);
+            // Patch all the types!
+            foreach (var type in module.Types) {
+               PatchType(type, module, monitorType, monitorInstance, patches);
             }
 
             // Write the module
@@ -308,5 +319,7 @@ namespace Pumpkin {
             }
          }
       }
+
+
    }
 }
