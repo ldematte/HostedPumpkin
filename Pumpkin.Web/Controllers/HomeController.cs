@@ -65,6 +65,12 @@ namespace Pumpkin.Web.Controllers {
          }         
       }
 
+      [HttpPost]
+      public ActionResult DeleteSnippet(string snippetId) {
+         repository.Delete(snippetId);
+         return new HttpStatusCodeResult(HttpStatusCode.OK);
+      }
+
 
       public static String SnippetUsing = @"
 using System;

@@ -187,5 +187,18 @@ namespace Pumpkin.Data {
             }
          }
       }
+
+      public void Delete(string id) {
+         using (var connection = GetOpenConnection()) {
+            SqlCeCommand cmd = connection.CreateCommand();
+
+            cmd.CommandText = "DELETE Snippets WHERE Id = ?";
+
+            cmd.Parameters.Add(new SqlCeParameter("Id", SqlDbType.NChar));
+            cmd.Prepare();
+            cmd.Parameters["Id"].Value = id.ToString();
+            cmd.ExecuteNonQuery();
+         }
+      }
    }
 }

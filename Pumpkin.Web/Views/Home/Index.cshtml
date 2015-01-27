@@ -41,7 +41,7 @@
             $("#resultTime").text(message.executionTime + "ms");
             $("#resultTotalTime").text(message.totalTime + "ms");
 
-            var snippetStatus = $("#" + snippetId);
+            var snippetStatus = $("#" + snippetId).find(".rectangle");
             if (snippetStatus) {
                snippetStatus.css("background", newStatus);
             }
@@ -55,6 +55,25 @@
                resultHubConnectionId = $.connection.hub.id;
             });
          }
+
+         $(".btnDelete").click(function () {
+            $("#resultForm").hide();
+            var snippetId = $(this).data("snippet-id");
+
+            $.ajax("/Home/DeleteSnippet", {
+               type: "POST",
+               data: { snippetId: snippetId }
+
+            }).done(function (data, textStatus, jqXHR) {
+               if (jqXHR.status >= 200 && jqXHR.status < 300) {
+                  submissionInfo.text("Snippet " + snippetId + " deleted");
+                  $("#" + snippetId).remove();
+               }
+               else {
+                  submissionInfo.text("Error deleting snippet: " + data);
+               }
+            });
+         });
 
          $(".btnGo").click(function () {
             submissionInfo.text("Submitting...");
@@ -116,16 +135,23 @@
 </div>
 <div class="row">      
    <h3>Execute a snippet</h3>
-   <dl>
+   <ul>
       @foreach (var item in Model) {
-         <dt>Snippet: @item.Id &nbsp;</dt>
-         <dd>
-            <span>Status:&nbsp;</span><span class="rectangle" id="@item.Id" style="background:@item.StatusColor;"></span>
-            <div>C# version: @item.CompilerVersion</div>
-            <pre>@item.Source</pre>
-            <button class="btnGo" data-snippet-id="@item.Id">Go!</button>
-            <div class="spacer" />
-         </dd>
+         <li id="@item.Id">
+            <dl>
+               <dt>Snippet: @item.Id &nbsp;</dt>
+               <dd>
+                  <span>Status:&nbsp;</span><span class="rectangle" style="background:@item.StatusColor;"></span>
+                  <div>
+                     <span style="vertical-align:baseline">C# version: @item.CompilerVersion</span>
+                     <button class="btnDelete btn btn-link" data-snippet-id="@item.Id">Delete this snippet</button>
+                  </div>
+                  <pre>@item.Source</pre>
+                  <button class="btnGo" data-snippet-id="@item.Id">Go!</button>
+                  <div class="spacer" />
+               </dd>
+            </dl>
+         </li>
       }
-   </dl>
+   </ul>
 </div>
