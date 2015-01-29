@@ -12,10 +12,56 @@ The solution is composed by the following sub-projects:
 - The _Pumpkin.Data_ project provides supporting functions, for example it helps in storing and retrieving compiled snippets in/from a DB
 - The _Pumpkin.Web_ project is a very simple ASP.NET MVC project, with pages for submitting a new snippet, listing all the snippets and execute them.
 
-![](https://github.com/ldematte/SimpleHost/blob/master/resources/Components.png)
-
 The goal of this POC is to take some C#, compile it, run it. Easy :) 
 More precisely, we want to execute third-party code (a “snippet”) in a safe, reliable and efficient way.
+
+The various projects in the solution collaborate as depicted in this architectural diagram:
+
+![](https://github.com/ldematte/SimpleHost/blob/master/resources/Components.png)
+
+More in detail; the implementation separates the phases of compiling a new snippet ("submitting" it) and of executing it. 
+The reasoning behind this choice was that the first is usually a one-time operation; a user write some demo code in a snippet and submits it. The MVC controller inside _Pumpkin.Web_ takes it, compiles it using classes from _Pumpkin.Submission_ and stores it in the DB with the help of _Pumpkin.Data_.
+
+Then when other users see the snippet, they hit the "Go" button on the snippet list page, and the system runs it: the page sends a POST to another controller method in _Pumpkin.Web_, which in turn sends the snippet id to the _SimpleHostRuntime_ running inside the Host; the host loads it from the DB with the help of _Pumpkin.Data_ and executes it:
+
+	// called when a new snippet is created
+	[HttpPost]
+	public ActionResult SubmitSnippet(/*snippet code params*/) {
+	    // Take the code, using statements, etc. Put them together and compile it
+	    var compiledSnippet = Pumpkin.SnippetCompiler.CompileWithCSC(...);
+	    // the compilation produces an assembly as a byte[]
+	    if (compiledSnippet.success) {
+	      //Save the byte[] into the DB
+	      repository.Save(compiledSnippet);
+	      return new HttpStatusCodeResult(204);
+	    }
+	}
+---
+	// Called when we want to run a previously compiled snippet
+	[HttpPost]
+	public async Task<ActionResult> RunSnippetAsync(String snippetId) {
+	   return Json(await HostConnector.RunSnippetAsync(snippetId));
+	}
+	public static async Task<SnippetResult> RunSnippetAsync(string snippetId) {
+	   var socket = GetSocket();
+	   await socket.SendAsync(snippetId, true); 
+	   // Send the snippet ID to the host.
+	   // The host takes the snippet ID, loads the snippet assembly from the DB,
+	   // executes it and returns the result (as a JSON)(**)
+	   string s = await socket.ReceiveAsync();
+	   return JsonConvert.DeserializeObject<SnippetResult>(s);
+	}
+---
+	// (**) Inside the host, in the HostServer class:
+	var command = await socket.ReceiveAsync();
+	var snippetId = Guid.Parse(command);
+	var snippetInfo = repository.Get(snippetId);
+	queue.SubmitSnippet(snippetInfo, tcs);
+
+
+The various bits can be re-arranged at will: a good idea would be to run the snippet just after compilation/submission, maybe in an "isolated" Host: a Host that uses a single AppDomain (not a pool, as the regular ones), where the snippet can fail, timeout, throw... we could "test" it upon submission, just after compilation, so we know if the snippet can be accepted in the system. Or if there are errors, we can put it in a review queue, or reject it, or use the "Exceptional queue" in the picture.
+
+
 
 ### Usage
 

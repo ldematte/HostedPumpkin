@@ -319,7 +319,5 @@ namespace Pumpkin {
             }
          }
       }
-
-
    }
 }
