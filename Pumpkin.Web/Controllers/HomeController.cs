@@ -17,7 +17,11 @@ namespace Pumpkin.Web.Controllers {
    public class HomeController : Controller {
 
       SnippetDataRepository repository = new SnippetDataRepository();
+      private readonly IHostConnector hostConnector;
 
+      public HomeController(IHostConnector hostConnector) {
+         this.hostConnector = hostConnector;
+      }
 
       public ActionResult Index() {
          var snippets = repository.All().Select(s => new Snippet { 
@@ -33,10 +37,10 @@ namespace Pumpkin.Web.Controllers {
          return View();
       }
 
-      private static async Task SubmitSnippetPostFeedback(string snippetId, string connectionId, long startTimestamp) {
+      private async Task SubmitSnippetPostFeedback(string snippetId, string connectionId, long startTimestamp) {
          SnippetResult result;
          try {
-            result = await HostConnector.RunSnippetAsync(snippetId);
+            result = await hostConnector.RunSnippetAsync(snippetId);
          }
          catch (Exception ex) {
             result = new SnippetResult() { status = SnippetStatus.InitializationError, exception = ex.Message };
@@ -58,7 +62,7 @@ namespace Pumpkin.Web.Controllers {
             return new HttpStatusCodeResult(HttpStatusCode.Accepted);
          }
          else {
-            SnippetResult result = await HostConnector.RunSnippetAsync(snippetId);
+            SnippetResult result = await hostConnector.RunSnippetAsync(snippetId);
             result.totalTime = StopwatchExtensions.GetTimestampMillis() - startTimestamp;
             Response.StatusCode = (int)HttpStatusCode.OK;
             return Json(new { connectionId = connectionId, message = result, newStatus = result.status.ToHealth().ToColor() });
@@ -132,7 +136,7 @@ namespace Snippets {
          // TODO: check the existence of the snippet
          // SnippetDataRepository repository = new SnippetDataRepository();         
 
-         return Json(await HostConnector.RunSnippetAsync(snippetId));
+         return Json(await hostConnector.RunSnippetAsync(snippetId));
       }
    }
 }

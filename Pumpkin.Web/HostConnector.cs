@@ -9,28 +9,43 @@ using System.Threading.Tasks;
 using System.Web;
 
 namespace Pumpkin.Web {
-   public class HostConnector {
+
+   public interface IHostConnector {
+      Task<SnippetResult> RunSnippetAsync(string snippetId);
+   }
+
+   public class HostSocketConnector: IHostConnector, IDisposable {
 
       public const int hostPort = 4321;
-      public static ProcessInfo hostProcess;
 
-      private static Socket socket;
-      private static Socket GetSocket() {
+      private Socket socket;
+      private Socket GetSocket() {
          try {
-            if (socket == null || !socket.Connected) {
-               socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
-               socket.Connect("localhost", hostPort);
+            if (socket != null) {
+               if (socket.Connected) {
+                  return socket;
+               }
+               else {
+                  try {
+                     socket.Dispose();
+                  }
+                  catch (Exception ex) {
+                     System.Diagnostics.Debug.WriteLine(ex.Message);
+                     throw;
+                  }
+               }
             }
-
+            socket = new Socket(SocketType.Stream, ProtocolType.Tcp);
+            socket.Connect("localhost", hostPort);
             return socket;
          }
          catch (Exception ex) {
             System.Diagnostics.Debug.WriteLine(ex.Message);
             throw;
          }
-      }
+      }      
 
-      public static async Task<SnippetResult> RunSnippetAsync(string snippetId) {
+      public async Task<SnippetResult> RunSnippetAsync(string snippetId) {
 
          var socket = GetSocket();
 
@@ -41,5 +56,17 @@ namespace Pumpkin.Web {
          return JsonConvert.DeserializeObject<SnippetResult>(s);
       }
 
+
+      public void Dispose() {
+         try {
+            if (socket != null) {
+               socket.Dispose();
+            }
+            socket = null;
+         }
+         catch (Exception ex) {
+            System.Diagnostics.Debug.WriteLine(ex.Message);            
+         }
+      }
    }
 }
